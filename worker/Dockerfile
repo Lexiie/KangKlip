@@ -42,8 +42,15 @@ from faster_whisper import WhisperModel
 WhisperModel(os.getenv("WHISPER_MODEL", "small"), device="cpu", compute_type="int8")
 PY
 
-COPY worker.py /app/worker.py
+COPY __init__.py /app/__init__.py
+COPY config.py /app/config.py
+COPY io_utils.py /app/io_utils.py
+COPY transcript.py /app/transcript.py
+COPY llm.py /app/llm.py
+COPY render.py /app/render.py
+COPY storage.py /app/storage.py
+COPY main.py /app/main.py
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python3", "/app/worker.py"]
+CMD ["python3", "/app/main.py"]

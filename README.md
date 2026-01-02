@@ -92,13 +92,17 @@ Required environment variables (no placeholders):
 
 ## Worker
 
-Run in container with GPU and bundled deps. The entrypoint is `worker/worker.py`.
+Run in container with GPU and bundled deps. The entrypoint is `worker/main.py`.
 
 Build image:
 
 ```bash
 cd worker
-docker build -t kangklip-worker:latest .
+docker build \
+  --build-arg HF_TOKEN=\
+  --build-arg LLM_REPO=Qwen/Qwen2.5-3B-Instruct-AWQ \
+  --build-arg WHISPER_MODEL=small \
+  -t kangklip-worker:latest .
 ```
 
 Required environment variables:
@@ -115,6 +119,13 @@ Required environment variables:
 - `R2_SECRET_ACCESS_KEY`
 - `R2_PREFIX`
 - `CALLBACK_URL`
+
+Optional overrides (defaults are optimized for RTX 3080):
+
+- `LLM_MODEL` (default `Qwen/Qwen2.5-3B-Instruct-AWQ`)
+- `LLM_QUANTIZATION` (default `awq`)
+- `LLM_CONTEXT_TOKENS` (default `4096`)
+- `LLM_GPU_MEMORY_UTIL` (default `0.7`)
 
 ## Demo Workflow (Local)
 

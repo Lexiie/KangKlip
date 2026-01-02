@@ -45,8 +45,10 @@ def _build_worker_env(job_id: str, payload: JobCreateRequest, callback_url: str)
         "TRANSCRIPT_MODE": "prefer_existing",
         "ASR_FALLBACK": "true",
         "ASR_MODEL": "small",
-        "LLM_MODEL": "qwen2.5-3b",
+        "LLM_MODEL": "Qwen/Qwen2.5-3B-Instruct-AWQ",
         "LLM_CONTEXT_TOKENS": "4096",
+        "LLM_QUANTIZATION": "awq",
+        "LLM_GPU_MEMORY_UTIL": "0.7",
         "CALLBACK_URL": callback_url,
         "R2_PREFIX": f"jobs/{job_id}/",
     }
