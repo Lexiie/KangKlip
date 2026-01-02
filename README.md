@@ -78,8 +78,10 @@ uvicorn backend.main:app --reload
 
 Required environment variables (no placeholders):
 
+- `NOSANA_API_BASE`
 - `NOSANA_API_KEY`
 - `NOSANA_WORKER_IMAGE`
+- `NOSANA_MARKET`
 - `NOSANA_GPU_MODEL`
 - `REDIS_URL`
 - `R2_ENDPOINT`
@@ -91,6 +93,13 @@ Required environment variables (no placeholders):
 ## Worker
 
 Run in container with GPU and bundled deps. The entrypoint is `worker/worker.py`.
+
+Build image:
+
+```bash
+cd worker
+docker build -t kangklip-worker:latest .
+```
 
 Required environment variables:
 

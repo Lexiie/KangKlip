@@ -3,8 +3,10 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Store environment configuration for the backend.
+    NOSANA_API_BASE: str = "https://dashboard.k8s.prd.nos.ci/api"
     NOSANA_API_KEY: str
     NOSANA_WORKER_IMAGE: str
+    NOSANA_MARKET: str
     NOSANA_GPU_MODEL: str = "3080"
     REDIS_URL: str
     R2_ENDPOINT: str
