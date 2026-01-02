@@ -11,6 +11,10 @@ on:
       - "worker/**"
       - ".github/workflows/build-worker.yml"
 
+concurrency:
+  group: build-worker-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-worker:
     runs-on: ubuntu-latest
