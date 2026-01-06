@@ -3,3 +3,5 @@ orjson==3.10.12
 httpx==0.28.1
 faster-whisper==1.0.3
 ctranslate2==4.5.0
+huggingface-hub==0.26.2
+requests==2.32.3

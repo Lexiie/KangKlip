@@ -20,10 +20,20 @@ RUN python3 -m pip install --upgrade pip \
   && python3 -m pip install --no-cache-dir -r /app/requirements.txt \
   && python3 -m pip install --no-cache-dir yt-dlp
 
+ENV HF_HOME=/models/hf
+ENV HF_HUB_DISABLE_TELEMETRY=1
+ENV HUGGINGFACE_HUB_DISABLE_TELEMETRY=1
+
 RUN python3 - <<'PY'
-from faster_whisper import WhisperModel
-WhisperModel("small", device="cpu", compute_type="int8")
+from huggingface_hub import snapshot_download
+
+snapshot_download(
+    repo_id="Systran/faster-whisper-small",
+    cache_dir="/models/hf",
+    local_dir_use_symlinks=False,
+)
 PY
+
 
 COPY __init__.py /app/__init__.py
 COPY config.py /app/config.py
