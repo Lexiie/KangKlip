@@ -60,3 +60,24 @@ def submit_nosana_run(settings: Settings, job_id: str, payload: Dict[str, Any]) 
     except httpx.HTTPError as exc:
         raise RuntimeError(f"Nosana deployment start failed for {job_id}: {exc}") from exc
     return str(deployment_id)
+
+
+def check_market_cache(settings: Settings, image: str) -> Dict[str, Any]:
+    # Check whether the worker image is listed in market required resources.
+    headers = {
+        "Authorization": f"Bearer {settings.NOSANA_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    try:
+        response = httpx.get(
+            f"{settings.NOSANA_API_BASE}/markets/{settings.NOSANA_MARKET}/required-resources",
+            headers=headers,
+            timeout=15.0,
+        )
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"Nosana market resource check failed: {exc}") from exc
+    data = response.json()
+    resources = data.get("resources", []) if isinstance(data, dict) else []
+    cached = any(resource.get("name") == image for resource in resources if isinstance(resource, dict))
+    return {"cached": cached, "resources": resources}

@@ -15,7 +15,7 @@ from .models import (
     CallbackRequest,
     ClipResult,
 )
-from .nosana import submit_nosana_run
+from .nosana import submit_nosana_run, check_market_cache
 from .r2 import load_manifest, sign_clip_urls
 from .settings import get_settings
 from .storage import JobStore
@@ -80,6 +80,11 @@ def create_job(payload: JobCreateRequest) -> JobCreateResponse:
             "progress": 0,
         },
     )
+    try:
+        cache_info = check_market_cache(settings, settings.NOSANA_WORKER_IMAGE)
+        store.update(job_id, {"market_cache": cache_info})
+    except Exception:
+        pass
     try:
         run_id = submit_nosana_run(settings, job_id, worker_env)
     except Exception as exc:
