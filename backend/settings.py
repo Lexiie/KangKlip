@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic_settings import BaseSettings
 
 
@@ -14,6 +16,10 @@ class Settings(BaseSettings):
     R2_ACCESS_KEY_ID: str
     R2_SECRET_ACCESS_KEY: str
     CALLBACK_BASE_URL: str
+    LLM_API_BASE: str
+    LLM_API_KEY: Optional[str] = None
+    LLM_TIMEOUT_SECONDS: int = 20
+    LLM_MODEL_NAME: str
 
 
 def get_settings() -> Settings:

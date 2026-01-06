@@ -43,3 +43,24 @@ def callback_backend(callback_url: str, payload: Dict[str, object]) -> None:
         response.raise_for_status()
     except httpx.HTTPError as exc:
         raise RuntimeError(f"Callback failed: {exc}") from exc
+
+
+def upload_error(
+    r2_endpoint: str,
+    r2_bucket: str,
+    access_key: str,
+    secret_key: str,
+    prefix: str,
+    error_payload: Dict[str, object],
+) -> None:
+    # Upload error payload to R2 for failed jobs.
+    client = boto3.client(
+        "s3",
+        endpoint_url=r2_endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        config=Config(signature_version="s3v4"),
+        region_name="auto",
+    )
+    key = f"{prefix.rstrip('/')}/error.json"
+    client.put_object(Bucket=r2_bucket, Key=key, Body=orjson.dumps(error_payload))

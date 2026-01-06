@@ -2,6 +2,8 @@ import json
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+import httpx
+
 from .config import WorkerConfig
 
 
@@ -22,51 +24,165 @@ def llm_select_segments(
     min_seconds: int,
     max_seconds: int,
 ) -> List[ClipSpec]:
-    # Select clip segments using a local vLLM model, fallback to heuristic.
-    try:
-        from vllm import LLM, SamplingParams
-    except Exception:
+    # Select clip segments using external LLM API, fallback to heuristic.
+    candidates = build_candidates(chunks, min_seconds, max_seconds)
+    if not candidates:
+        _set_selection("heuristic", config.llm_api_base)
         return heuristic_select(chunks, clip_count, min_seconds, max_seconds)
-    prompt = _build_prompt(chunks, clip_count, min_seconds, max_seconds)
-    llm = LLM(
-        model=config.llm_model,
-        dtype="auto",
-        max_model_len=config.llm_context_tokens,
-        quantization=config.llm_quantization,
-        gpu_memory_utilization=config.llm_gpu_memory_util,
-    )
-    params = SamplingParams(temperature=0.2, max_tokens=512)
     try:
-        outputs = llm.generate([prompt], params)
-        text = outputs[0].outputs[0].text
-        data = json.loads(_extract_json(text))
-        clips = []
-        for clip in data.get("clips", []):
-            clips.append(
-                ClipSpec(
-                    index=int(clip.get("index", 0)),
-                    title=str(clip.get("title", "")),
-                    hook=str(clip.get("hook", "")),
-                    start=float(clip.get("start", 0.0)),
-                    end=float(clip.get("end", 0.0)),
-                )
+        selected = _call_gemini(config, candidates, clip_count, min_seconds, max_seconds)
+    except (httpx.HTTPError, json.JSONDecodeError, ValueError, RuntimeError):
+        _set_selection("heuristic", config.llm_api_base)
+        return heuristic_select(chunks, clip_count, min_seconds, max_seconds)
+
+    candidate_lookup = {candidate["id"]: candidate for candidate in candidates}
+    clips: List[ClipSpec] = []
+    for item in selected:
+        candidate_id = item.get("candidate_id")
+        if not candidate_id or candidate_id not in candidate_lookup:
+            continue
+        candidate = candidate_lookup[candidate_id]
+        clips.append(
+            ClipSpec(
+                index=len(clips) + 1,
+                title=str(item.get("title", "")),
+                hook=str(item.get("hook", "")),
+                start=float(candidate["start"]),
+                end=float(candidate["end"]),
             )
-        validated = validate_clips(clips, clip_count, min_seconds, max_seconds)
-        if not validated:
-            raise RuntimeError("empty LLM clip list")
+        )
+        if len(clips) >= clip_count:
+            break
+
+    clips.sort(key=lambda clip: clip.start)
+
+    validated = validate_clips(clips, clip_count, min_seconds, max_seconds)
+    if len(validated) < clip_count:
+        fallback = heuristic_select(chunks, clip_count, min_seconds, max_seconds)
+        merged = validated + [clip for clip in fallback if clip not in validated]
+        merged.sort(key=lambda clip: clip.start)
+        validated = validate_clips(merged, clip_count, min_seconds, max_seconds)
+    if validated:
+        validated = reindex_clips(validated)
+        _set_selection("llm_api", _build_endpoint(config))
         return validated
-    except Exception:
-        return heuristic_select(chunks, clip_count, min_seconds, max_seconds)
+    _set_selection("heuristic", config.llm_api_base)
+    return heuristic_select(chunks, clip_count, min_seconds, max_seconds)
 
 
-def _build_prompt(chunks: List[Dict[str, float]], clip_count: int, min_seconds: int, max_seconds: int) -> str:
-    # Build a structured prompt for clip selection.
-    return (
-        "You are selecting highlight clips. Return JSON only. "
-        f"Need {clip_count} clips, duration {min_seconds}-{max_seconds}s, non-overlapping. "
-        "Chunks: "
-        + json.dumps(chunks)
+_LAST_SELECTION: Dict[str, Optional[str]] = {"mode": None, "endpoint": None}
+
+
+def get_last_selection() -> Dict[str, Optional[str]]:
+    # Return last selection metadata for manifest.
+    return {"mode": _LAST_SELECTION.get("mode"), "endpoint": _LAST_SELECTION.get("endpoint")}
+
+
+def _set_selection(mode: str, endpoint: str) -> None:
+    # Store selection metadata for downstream manifest.
+    _LAST_SELECTION["mode"] = mode
+    _LAST_SELECTION["endpoint"] = endpoint
+
+
+def build_candidates(
+    chunks: List[Dict[str, float]],
+    min_seconds: int,
+    max_seconds: int,
+) -> List[Dict[str, object]]:
+    # Build deterministic candidate windows from transcript chunks.
+    candidates: List[Dict[str, object]] = []
+    for idx, chunk in enumerate(chunks, start=1):
+        start = float(chunk["start"])
+        end = min(float(chunk["end"]), start + max_seconds)
+        if end - start < min_seconds:
+            end = start + min_seconds
+        candidates.append(
+            {
+                "id": f"c{idx:03d}",
+                "start": start,
+                "end": end,
+                "text": str(chunk.get("text", "")),
+            }
+        )
+    return candidates
+
+
+def _build_endpoint(config: WorkerConfig) -> str:
+    # Build Gemini API endpoint URL.
+    base = config.llm_api_base.rstrip("/")
+    return f"{base}/v1beta/models/{config.llm_model_name}:generateContent"
+
+
+def _call_gemini(
+    config: WorkerConfig,
+    candidates: List[Dict[str, object]],
+    clip_count: int,
+    min_seconds: int,
+    max_seconds: int,
+) -> List[Dict[str, object]]:
+    # Call Gemini API to select candidate clips.
+    endpoint = _build_endpoint(config)
+    headers = {"Content-Type": "application/json"}
+    prompt = _build_prompt(
+        config.job_id,
+        config.language,
+        clip_count,
+        min_seconds,
+        max_seconds,
+        candidates,
     )
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": prompt}],
+            }
+        ]
+    }
+    url = endpoint
+    if config.llm_api_key:
+        url = f"{endpoint}?key={config.llm_api_key}"
+    response = httpx.post(url, json=payload, headers=headers, timeout=config.llm_timeout_seconds)
+    response.raise_for_status()
+    data = response.json()
+    text = _extract_text(data)
+    parsed = json.loads(_extract_json(text))
+    return parsed.get("selected", [])
+
+
+def _build_prompt(
+    job_id: str,
+    language: str,
+    clip_count: int,
+    min_seconds: int,
+    max_seconds: int,
+    candidates: List[Dict[str, object]],
+) -> str:
+    # Build deterministic prompt for rerank selection.
+    return (
+        "Select highlight clips from candidates. Return JSON only. "
+        "Use only candidate_id from the list. "
+        f"job_id={job_id} language={language} clip_count={clip_count} "
+        f"min_seconds={min_seconds} max_seconds={max_seconds}. "
+        "Response schema: {\"selected\":[{\"candidate_id\":\"c001\",\"title\":\"...\",\"hook\":\"...\",\"score\":0.0}]} "
+        "Candidates: "
+        + json.dumps(candidates)
+    )
+
+
+def _extract_text(payload: Dict[str, object]) -> str:
+    # Extract text output from Gemini response.
+    candidates = payload.get("candidates")
+    if not candidates:
+        raise RuntimeError("LLM response missing candidates")
+    content = candidates[0].get("content", {})
+    parts = content.get("parts", [])
+    if not parts:
+        raise RuntimeError("LLM response missing parts")
+    text = parts[0].get("text")
+    if not text:
+        raise RuntimeError("LLM response missing text")
+    return str(text)
 
 
 def _extract_json(text: str) -> str:
@@ -86,16 +202,17 @@ def heuristic_select(
 ) -> List[ClipSpec]:
     # Use a deterministic fallback to pick early chunks for clips.
     clips: List[ClipSpec] = []
-    for idx, chunk in enumerate(chunks[:clip_count], start=1):
-        start = float(chunk["start"])
-        end = min(float(chunk["end"]), start + max_seconds)
+    candidates = build_candidates(chunks, min_seconds, max_seconds)
+    for idx, candidate in enumerate(candidates[:clip_count], start=1):
+        start = float(candidate["start"])
+        end = float(candidate["end"])
         if end - start < min_seconds:
             end = start + min_seconds
         clips.append(
             ClipSpec(
                 index=idx,
                 title=f"Clip {idx}",
-                hook=chunk.get("text", "")[:120],
+                hook=str(candidate.get("text", ""))[:120],
                 start=start,
                 end=end,
             )
@@ -123,6 +240,22 @@ def validate_clips(
         sanitized.append(clip)
         last_end = clip.end
     return sanitized[:clip_count]
+
+
+def reindex_clips(clips: List[ClipSpec]) -> List[ClipSpec]:
+    # Reassign sequential indices to avoid duplicate output filenames.
+    reindexed: List[ClipSpec] = []
+    for idx, clip in enumerate(clips, start=1):
+        reindexed.append(
+            ClipSpec(
+                index=idx,
+                title=clip.title,
+                hook=clip.hook,
+                start=clip.start,
+                end=clip.end,
+            )
+        )
+    return reindexed
 
 
 def build_manifest(job_id: str, clips: List[ClipSpec]) -> Dict[str, object]:

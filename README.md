@@ -89,6 +89,8 @@ Required environment variables (no placeholders):
 - `R2_ACCESS_KEY_ID`
 - `R2_SECRET_ACCESS_KEY`
 - `CALLBACK_BASE_URL`
+- `LLM_API_BASE`
+- `LLM_MODEL_NAME`
 
 ## Worker
 
@@ -99,9 +101,6 @@ Build image:
 ```bash
 cd worker
 docker build \
-  --build-arg HF_TOKEN=\
-  --build-arg LLM_REPO=Qwen/Qwen2.5-3B-Instruct-AWQ \
-  --build-arg WHISPER_MODEL=small \
   -t kangklip-worker:latest .
 ```
 
@@ -122,10 +121,8 @@ Required environment variables:
 
 Optional overrides (defaults are optimized for RTX 3080):
 
-- `LLM_MODEL` (default `Qwen/Qwen2.5-3B-Instruct-AWQ`)
-- `LLM_QUANTIZATION` (default `awq`)
-- `LLM_CONTEXT_TOKENS` (default `4096`)
-- `LLM_GPU_MEMORY_UTIL` (default `0.7`)
+- `LLM_API_KEY`
+- `LLM_TIMEOUT_SECONDS`
 
 ## Demo Workflow (Local)
 

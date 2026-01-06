@@ -18,10 +18,10 @@ class WorkerConfig:
     r2_access_key: str
     r2_secret_key: str
     r2_prefix: str
-    llm_model: str
-    llm_context_tokens: int
-    llm_quantization: Optional[str]
-    llm_gpu_memory_util: float
+    llm_api_base: str
+    llm_api_key: Optional[str]
+    llm_timeout_seconds: int
+    llm_model_name: str
 
 
 def read_env(name: str, default: Optional[str] = None) -> str:
@@ -34,9 +34,11 @@ def read_env(name: str, default: Optional[str] = None) -> str:
 
 def load_config() -> WorkerConfig:
     # Load worker configuration from environment variables.
-    llm_quantization = read_env("LLM_QUANTIZATION", "awq")
-    if llm_quantization.lower() in {"none", ""}:
-        llm_quantization = None
+    llm_api_base = read_env("LLM_API_BASE")
+    llm_api_key = os.getenv("LLM_API_KEY")
+    llm_model_name = read_env("LLM_MODEL_NAME")
+    if "generativelanguage.googleapis.com" in llm_api_base and not llm_api_key:
+        raise RuntimeError("Missing required env var: LLM_API_KEY")
     return WorkerConfig(
         job_id=read_env("JOB_ID"),
         video_url=read_env("VIDEO_URL"),
@@ -50,8 +52,8 @@ def load_config() -> WorkerConfig:
         r2_access_key=read_env("R2_ACCESS_KEY_ID"),
         r2_secret_key=read_env("R2_SECRET_ACCESS_KEY"),
         r2_prefix=read_env("R2_PREFIX"),
-        llm_model=read_env("LLM_MODEL", "Qwen/Qwen2.5-3B-Instruct-AWQ"),
-        llm_context_tokens=int(read_env("LLM_CONTEXT_TOKENS", "4096")),
-        llm_quantization=llm_quantization,
-        llm_gpu_memory_util=float(read_env("LLM_GPU_MEMORY_UTIL", "0.7")),
+        llm_api_base=llm_api_base,
+        llm_api_key=llm_api_key,
+        llm_timeout_seconds=int(read_env("LLM_TIMEOUT_SECONDS", "20")),
+        llm_model_name=llm_model_name,
     )

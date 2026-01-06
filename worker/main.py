@@ -4,9 +4,9 @@ import orjson
 
 from .config import load_config
 from .io_utils import ensure_dirs, download_video, extract_audio
-from .llm import llm_select_segments, build_manifest, clip_to_edl
+from .llm import llm_select_segments, build_manifest, clip_to_edl, get_last_selection
 from .render import render_clips
-from .storage import upload_to_r2, callback_backend
+from .storage import upload_to_r2, callback_backend, upload_error
 from .transcript import fetch_captions, transcribe_audio, chunk_transcript
 
 
@@ -21,7 +21,7 @@ def main() -> None:
     ensure_dirs([input_dir, artifacts_dir, output_dir])
 
     video_path = input_dir / "source.mp4"
-    meta_path = artifacts_dir / "source_meta.json"
+    meta_path = artifacts_dir / "meta.json"
     audio_path = input_dir / "audio.wav"
     transcript_path = artifacts_dir / "transcript.json"
     chunks_path = artifacts_dir / "chunks.json"
@@ -49,6 +49,7 @@ def main() -> None:
         edl_path.write_bytes(orjson.dumps(clip_to_edl(config.job_id, clips)))
         clip_files = render_clips(video_path, output_dir, clips)
         manifest = build_manifest(config.job_id, clips)
+        manifest["selection"] = get_last_selection()
         upload_to_r2(
             config.r2_endpoint,
             config.r2_bucket,
@@ -65,6 +66,17 @@ def main() -> None:
         )
     except Exception as exc:
         error_message = str(exc)
+        try:
+            upload_error(
+                config.r2_endpoint,
+                config.r2_bucket,
+                config.r2_access_key,
+                config.r2_secret_key,
+                config.r2_prefix,
+                {"job_id": config.job_id, "error": error_message},
+            )
+        except Exception:
+            pass
         callback_backend(
             config.callback_url,
             {"job_id": config.job_id, "status": "FAILED", "error": error_message},

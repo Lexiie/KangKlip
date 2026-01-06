@@ -1,4 +1,5 @@
 from typing import Dict, Any
+import re
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
@@ -32,10 +33,10 @@ def _build_callback_url(base_url: str) -> str:
     return f"{base_url.rstrip('/')}/api/callback/nosana"
 
 
-def _build_worker_env(job_id: str, payload: JobCreateRequest, callback_url: str) -> Dict[str, Any]:
+def _build_worker_env(settings, job_id: str, payload: JobCreateRequest, callback_url: str) -> Dict[str, Any]:
     # Construct environment variables to pass into the worker job.
     clip_seconds = str(payload.clip_duration_seconds)
-    return {
+    env = {
         "JOB_ID": job_id,
         "VIDEO_URL": str(payload.video_url),
         "CLIP_COUNT": str(payload.clip_count),
@@ -45,13 +46,15 @@ def _build_worker_env(job_id: str, payload: JobCreateRequest, callback_url: str)
         "TRANSCRIPT_MODE": "prefer_existing",
         "ASR_FALLBACK": "true",
         "ASR_MODEL": "small",
-        "LLM_MODEL": "Qwen/Qwen2.5-3B-Instruct-AWQ",
-        "LLM_CONTEXT_TOKENS": "4096",
-        "LLM_QUANTIZATION": "awq",
-        "LLM_GPU_MEMORY_UTIL": "0.7",
+        "LLM_API_BASE": settings.LLM_API_BASE,
+        "LLM_TIMEOUT_SECONDS": str(settings.LLM_TIMEOUT_SECONDS),
+        "LLM_MODEL_NAME": settings.LLM_MODEL_NAME,
         "CALLBACK_URL": callback_url,
         "R2_PREFIX": f"jobs/{job_id}/",
     }
+    if settings.LLM_API_KEY:
+        env["LLM_API_KEY"] = settings.LLM_API_KEY
+    return env
 
 
 def _get_store() -> JobStore:
@@ -67,7 +70,7 @@ def create_job(payload: JobCreateRequest) -> JobCreateResponse:
     store = JobStore(settings.REDIS_URL)
     job_id = _build_job_id()
     callback_url = _build_callback_url(settings.CALLBACK_BASE_URL)
-    worker_env = _build_worker_env(job_id, payload, callback_url)
+    worker_env = _build_worker_env(settings, job_id, payload, callback_url)
     store.set(
         job_id,
         {
@@ -138,6 +141,8 @@ def nosana_callback(payload: CallbackRequest) -> JSONResponse:
     # Update job state after worker callback.
     # TODO: Require auth/signature for production deployments.
     store = _get_store()
+    if not _is_valid_job_id(payload.job_id):
+        raise HTTPException(status_code=400, detail="invalid job id")
     data = store.get(payload.job_id)
     if not data:
         raise HTTPException(status_code=404, detail="job not found")
@@ -150,3 +155,6 @@ def nosana_callback(payload: CallbackRequest) -> JSONResponse:
     }
     store.update(payload.job_id, updates)
     return JSONResponse({"ok": True})
+def _is_valid_job_id(job_id: str) -> bool:
+    # Validate job id format (kk_ + ULID).
+    return bool(re.match(r"^kk_[0-9A-HJKMNP-TV-Z]{26}$", job_id))
