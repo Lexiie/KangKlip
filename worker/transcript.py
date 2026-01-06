@@ -78,7 +78,7 @@ def transcribe_audio(audio_path: Path, language: str) -> List[TranscriptEntry]:
         from faster_whisper import WhisperModel
     except Exception as exc:
         raise RuntimeError("faster-whisper is not available") from exc
-    model = WhisperModel("small", device="cuda", compute_type="int8")
+    model = WhisperModel("base", device="cuda", compute_type="int8")
     segments, _ = model.transcribe(
         str(audio_path),
         language=None if language == "auto" else language,

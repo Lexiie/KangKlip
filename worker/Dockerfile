@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -28,7 +28,7 @@ RUN python3 - <<'PY'
 from huggingface_hub import snapshot_download
 
 snapshot_download(
-    repo_id="Systran/faster-whisper-small",
+    repo_id="Systran/faster-whisper-base",
     cache_dir="/models/hf",
     local_dir_use_symlinks=False,
 )
