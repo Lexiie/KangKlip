@@ -4,7 +4,12 @@ from typing import Dict, List, Optional
 
 import httpx
 
-from .config import WorkerConfig
+try:
+    from .config import WorkerConfig
+except ImportError as exc:
+    if "attempted relative import" not in str(exc):
+        raise
+    from config import WorkerConfig
 
 
 @dataclass

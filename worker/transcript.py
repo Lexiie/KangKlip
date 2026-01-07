@@ -2,7 +2,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
-from .io_utils import run_cmd
+try:
+    from .io_utils import run_cmd
+except ImportError as exc:
+    if "attempted relative import" not in str(exc):
+        raise
+    from io_utils import run_cmd
 
 
 @dataclass

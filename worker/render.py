@@ -1,8 +1,14 @@
 from pathlib import Path
 from typing import List
 
-from .llm import ClipSpec
-from .io_utils import run_cmd
+try:
+    from .llm import ClipSpec
+    from .io_utils import run_cmd
+except ImportError as exc:
+    if "attempted relative import" not in str(exc):
+        raise
+    from llm import ClipSpec
+    from io_utils import run_cmd
 
 
 def render_clips(video_path: Path, output_dir: Path, clips: List[ClipSpec]) -> List[Path]:
