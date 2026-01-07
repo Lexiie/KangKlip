@@ -2,6 +2,7 @@
 **/.DS_Store
 **/.env
 **/.env.*
+/.env
 !.env.example
 **/.venv/
 **/.pytest_cache/
@@ -19,5 +20,7 @@
 **/pnpm-debug.log*
 **/yarn-debug.log*
 **/yarn-error.log*
+.logs/
+.pids/
 .code/
 prd.md

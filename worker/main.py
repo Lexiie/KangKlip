@@ -2,12 +2,22 @@ from pathlib import Path
 
 import orjson
 
-from .config import load_config
-from .io_utils import ensure_dirs, download_video, extract_audio
-from .llm import llm_select_segments, build_manifest, clip_to_edl, get_last_selection
-from .render import render_clips
-from .storage import upload_to_r2, callback_backend, upload_error
-from .transcript import fetch_captions, transcribe_audio, chunk_transcript
+try:
+    from .config import load_config
+    from .io_utils import ensure_dirs, download_video, extract_audio
+    from .llm import llm_select_segments, build_manifest, clip_to_edl, get_last_selection
+    from .render import render_clips
+    from .storage import upload_to_r2, callback_backend, upload_error
+    from .transcript import fetch_captions, transcribe_audio, chunk_transcript
+except ImportError as exc:
+    if "attempted relative import" not in str(exc):
+        raise
+    from config import load_config
+    from io_utils import ensure_dirs, download_video, extract_audio
+    from llm import llm_select_segments, build_manifest, clip_to_edl, get_last_selection
+    from render import render_clips
+    from storage import upload_to_r2, callback_backend, upload_error
+    from transcript import fetch_captions, transcribe_audio, chunk_transcript
 
 
 def main() -> None:

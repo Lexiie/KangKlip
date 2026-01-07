@@ -17,6 +17,7 @@ export default function HomePage() {
   const [language, setLanguage] = useState("auto");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
 
@@ -24,6 +25,8 @@ export default function HomePage() {
     // Submit the job to the backend API.
     setLoading(true);
     setError(null);
+    setHint(null);
+    const useNoCors = process.env.NEXT_PUBLIC_FETCH_NO_CORS === "true";
     try {
       const response = await fetch(`${apiBase}/api/jobs`, {
         method: "POST",
@@ -34,7 +37,12 @@ export default function HomePage() {
           clip_count: clipCount,
           language,
         }),
+        mode: useNoCors ? "no-cors" : "cors",
       });
+      if (useNoCors || response.type === "opaque") {
+        setHint("Request sent in no-cors mode. Check backend logs for job creation.");
+        return;
+      }
       if (!response.ok) {
         const text = await response.text();
         throw new Error(text || "Failed to create job");
@@ -42,7 +50,11 @@ export default function HomePage() {
       const data = (await response.json()) as JobResponse;
       router.push(`/jobs/${data.job_id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError(message);
+      setHint(
+        `Cannot reach backend. Check NEXT_PUBLIC_API_BASE (current: ${apiBase || "<empty>"}) and that backend is running.`
+      );
     } finally {
       setLoading(false);
     }
@@ -153,6 +165,7 @@ export default function HomePage() {
             </label>
           </div>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {hint ? <p className="text-xs text-slate-500">{hint}</p> : null}
           <button
             onClick={submitJob}
             disabled={loading || !videoUrl}

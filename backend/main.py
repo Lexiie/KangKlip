@@ -2,8 +2,9 @@ from typing import Dict, Any
 import re
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from ulid import ULID
+import ulid
 
 from .models import (
     JobCreateRequest,
@@ -22,10 +23,18 @@ from .storage import JobStore
 
 app = FastAPI(title="KangKlip API")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 def _build_job_id() -> str:
     # Build a deterministic job id using ULID.
-    return f"kk_{ULID().str}"
+    return f"kk_{ulid.new().str}"
 
 
 def _build_callback_url(base_url: str) -> str:
@@ -45,7 +54,7 @@ def _build_worker_env(settings, job_id: str, payload: JobCreateRequest, callback
         "OUTPUT_LANGUAGE": payload.language,
         "TRANSCRIPT_MODE": "prefer_existing",
         "ASR_FALLBACK": "true",
-        "ASR_MODEL": "small",
+        "ASR_MODEL": "base",
         "LLM_API_BASE": settings.LLM_API_BASE,
         "LLM_TIMEOUT_SECONDS": str(settings.LLM_TIMEOUT_SECONDS),
         "LLM_MODEL_NAME": settings.LLM_MODEL_NAME,
