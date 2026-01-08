@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 try:
     from .io_utils import run_cmd
@@ -54,7 +54,7 @@ def _parse_timestamp(value: str) -> float:
     return seconds
 
 
-def fetch_captions(video_url: str, output_dir: Path, language: str) -> List[TranscriptEntry]:
+def fetch_captions(video_url: str, output_dir: Path, language: str) -> Optional[List[TranscriptEntry]]:
     # Attempt to fetch existing captions using yt-dlp.
     subtitle_path = output_dir / "captions.vtt"
     args = [
@@ -70,11 +70,15 @@ def fetch_captions(video_url: str, output_dir: Path, language: str) -> List[Tran
     if language != "auto":
         args.extend(["--sub-lang", language])
     args.append(video_url)
-    run_cmd(args)
-    for candidate in output_dir.glob("captions*.vtt"):
-        candidate.replace(subtitle_path)
-        break
-    return parse_vtt(subtitle_path)
+    
+    try:
+        run_cmd(args)
+        for candidate in output_dir.glob("captions*.vtt"):
+            candidate.replace(subtitle_path)
+            break
+        return parse_vtt(subtitle_path)
+    except Exception:
+        return None
 
 
 def transcribe_audio(audio_path: Path, language: str) -> List[TranscriptEntry]:

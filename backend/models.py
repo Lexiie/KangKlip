@@ -43,6 +43,8 @@ class JobStatusResponse(BaseModel):
     status: JobStatus
     stage: Optional[JobStage] = None
     progress: Optional[int] = Field(default=None, ge=0, le=100)
+    start_error: Optional[str] = None
+    nosana_run_id: Optional[str] = None
 
 
 class ClipResult(BaseModel):
@@ -60,6 +62,6 @@ class JobResultsResponse(BaseModel):
 class CallbackRequest(BaseModel):
     # Payload schema for worker callbacks.
     job_id: str
-    status: JobStatus
+    status: str  # Accept string, validate in endpoint
     r2_prefix: Optional[str] = None
     error: Optional[str] = None
