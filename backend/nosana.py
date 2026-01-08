@@ -76,7 +76,7 @@ def submit_nosana_run(settings: Settings, job_id: str, payload: Dict[str, Any]) 
                 time.sleep(delay * (attempt + 1))
 
     start_error: Exception | None = None
-    time.sleep(2.0)
+    time.sleep(20.0)
     for attempt in range(5):
         try:
             start_response = httpx.post(

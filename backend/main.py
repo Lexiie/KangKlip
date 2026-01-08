@@ -17,7 +17,7 @@ from .models import (
     CallbackRequest,
     ClipResult,
 )
-from .nosana import create_nosana_deployment, start_nosana_deployment, check_market_cache
+from .nosana import submit_nosana_run, check_market_cache
 from .r2 import load_manifest, sign_clip_urls
 from .settings import get_settings
 from .storage import JobStore
@@ -100,20 +100,11 @@ def create_job(payload: JobCreateRequest) -> JobCreateResponse:
     except Exception:
         pass
     try:
-        run_id = create_nosana_deployment(settings, job_id, worker_env)
+        run_id = submit_nosana_run(settings, job_id, worker_env)
     except Exception as exc:
         store.update(job_id, {"status": JobStatus.FAILED.value, "error": str(exc)})
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     store.update(job_id, {"nosana_run_id": run_id})
-
-    def _start_async() -> None:
-        # Start deployment asynchronously to keep API responsive.
-        start_error = start_nosana_deployment(settings, run_id)
-        if start_error:
-            store.update(job_id, {"start_error": start_error})
-
-    thread = threading.Thread(target=_start_async, daemon=True)
-    thread.start()
     return JobCreateResponse(job_id=job_id, status=JobStatus.QUEUED)
 
 
@@ -133,24 +124,6 @@ def get_job(job_id: str) -> JobStatusResponse:
         nosana_run_id=data.get("nosana_run_id"),
     )
 
-
-@app.post("/api/jobs/{job_id}/start")
-def start_job(job_id: str) -> JSONResponse:
-    # Manually trigger a Nosana start for a job.
-    settings = get_settings()
-    store = _get_store()
-    data = store.get(job_id)
-    if not data:
-        raise HTTPException(status_code=404, detail="job not found")
-    run_id = data.get("nosana_run_id")
-    if not run_id:
-        raise HTTPException(status_code=409, detail="nosana run id missing")
-    start_error = start_nosana_deployment(settings, run_id)
-    if start_error:
-        store.update(job_id, {"start_error": start_error})
-        return JSONResponse({"ok": False, "start_error": start_error})
-    store.update(job_id, {"start_error": None})
-    return JSONResponse({"ok": True})
 
 
 @app.get("/api/jobs/{job_id}/results", response_model=JobResultsResponse)

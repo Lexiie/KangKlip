@@ -24,3 +24,8 @@
 .pids/
 .code/
 prd.md
+# Redis dump
+dump.rdb
+
+# Manual deployment files
+nosana_create_body_manual.json
