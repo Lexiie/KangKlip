@@ -1,4 +1,6 @@
 from pathlib import Path
+import sys
+import traceback
 
 import orjson
 
@@ -23,6 +25,7 @@ except ImportError as exc:
 def main() -> None:
     # Execute the full worker pipeline.
     config = load_config()
+    print(f"worker start job_id={config.job_id}")
 
     base_dir = Path("/work")
     input_dir = base_dir / "input"
@@ -38,15 +41,21 @@ def main() -> None:
     edl_path = artifacts_dir / "edl.json"
 
     try:
+        print("download video")
         download_video(config.video_url, video_path, meta_path)
+        print("extract audio")
         extract_audio(video_path, audio_path)
+        print("fetch captions")
         transcript = fetch_captions(config.video_url, artifacts_dir, config.language)
         if not transcript:
+            print("transcribe audio")
             transcript = transcribe_audio(audio_path, config.language)
+        print("chunk transcript")
         transcript_payload = [entry.__dict__ for entry in transcript]
         transcript_path.write_bytes(orjson.dumps(transcript_payload))
         chunks = chunk_transcript(transcript)
         chunks_path.write_bytes(orjson.dumps(chunks))
+        print("llm select")
         clips = llm_select_segments(
             config,
             chunks,
@@ -56,10 +65,12 @@ def main() -> None:
         )
         if not clips:
             raise RuntimeError("No valid clips produced")
+        print("render clips")
         edl_path.write_bytes(orjson.dumps(clip_to_edl(config.job_id, clips)))
         clip_files = render_clips(video_path, output_dir, clips)
         manifest = build_manifest(config.job_id, clips)
         manifest["selection"] = get_last_selection()
+        print("upload artifacts")
         upload_to_r2(
             config.r2_endpoint,
             config.r2_bucket,
@@ -70,13 +81,17 @@ def main() -> None:
             clip_files,
             manifest,
         )
+        print("callback success")
         callback_backend(
             config.callback_url,
             {"job_id": config.job_id, "status": "SUCCEEDED", "r2_prefix": config.r2_prefix},
         )
     except Exception as exc:
         error_message = str(exc)
+        print(f"worker error: {error_message}", file=sys.stderr)
+        traceback.print_exc()
         try:
+            print("upload error payload")
             upload_error(
                 config.r2_endpoint,
                 config.r2_bucket,
@@ -87,6 +102,7 @@ def main() -> None:
             )
         except Exception:
             pass
+        print("callback failed")
         callback_backend(
             config.callback_url,
             {"job_id": config.job_id, "status": "FAILED", "error": error_message},
