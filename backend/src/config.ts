@@ -1,0 +1,55 @@
+import dotenv from "dotenv";
+
+dotenv.config();
+
+export type Config = {
+  nosanaApiKey: string;
+  nosanaMarket: string;
+  nosanaWorkerImage: string;
+  nosanaApiBase: string;
+  redisUrl: string;
+  r2Endpoint: string;
+  r2Bucket: string;
+  r2AccessKeyId: string;
+  r2SecretAccessKey: string;
+  callbackBaseUrl: string;
+  llmApiBase: string;
+  llmModelName: string;
+  llmApiKey?: string;
+};
+
+const required = (key: string): string => {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Missing env var ${key}`);
+  }
+  return value;
+};
+
+export const getConfig = (): Config => {
+  return {
+    nosanaApiKey: required("NOSANA_API_KEY"),
+    nosanaMarket: required("NOSANA_MARKET"),
+    nosanaWorkerImage: required("NOSANA_WORKER_IMAGE"),
+    nosanaApiBase: process.env.NOSANA_API_BASE || "https://dashboard.k8s.prd.nos.ci/api",
+    redisUrl: required("REDIS_URL"),
+    r2Endpoint: required("R2_ENDPOINT"),
+    r2Bucket: required("R2_BUCKET"),
+    r2AccessKeyId: required("R2_ACCESS_KEY_ID"),
+    r2SecretAccessKey: required("R2_SECRET_ACCESS_KEY"),
+    callbackBaseUrl: required("CALLBACK_BASE_URL"),
+    llmApiBase: required("LLM_API_BASE"),
+    llmModelName: required("LLM_MODEL_NAME"),
+    llmApiKey: process.env.LLM_API_KEY,
+  };
+};
+
+export const normalizeApiBase = (base: string): string => {
+  const trimmed = base.replace(/\/+$/, "");
+  return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
+};
+
+export const normalizeSdkBase = (base: string): string => {
+  const trimmed = base.replace(/\/+$/, "");
+  return trimmed.endsWith("/api") ? trimmed.slice(0, -4) : trimmed;
+};

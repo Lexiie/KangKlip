@@ -30,7 +30,7 @@ start_redis() {
 
 start_backend() {
   echo "Starting backend..."
-  (cd "$ROOT_DIR" && PYTHONPATH="$ROOT_DIR" nohup uvicorn backend.main:app --reload --reload-dir "$ROOT_DIR/backend" --host 127.0.0.1 --port 8000 >"$LOG_DIR/backend.log" 2>&1 & echo $! >"$PID_DIR/backend.pid")
+  (cd "$ROOT_DIR/backend" && nohup npm run dev >"$LOG_DIR/backend.log" 2>&1 & echo $! >"$PID_DIR/backend.pid")
 }
 
 start_frontend() {

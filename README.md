@@ -11,14 +11,14 @@ KangKlip is a deterministic, GPU-first short‑clip generator. Paste a long‑fo
 
 ## Services
 
-- `backend/` FastAPI orchestrator
+- `backend/` Express + TypeScript orchestrator
 - `worker/` GPU pipeline job
 - `frontend/` Next.js UI
 
 ## Architecture at a Glance
 
 ```
-User → Frontend → Backend (FastAPI) → Nosana GPU Job → R2
+User → Frontend → Backend (Express) → Nosana GPU Job → R2
                       ↑                 ↓
                   Redis state      Callback status
 ```
@@ -71,9 +71,8 @@ Run locally:
 
 ```bash
 cd backend
-python -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
-uvicorn backend.main:app --reload
+npm install
+npm run dev
 ```
 
 Required environment variables (no placeholders):
@@ -127,7 +126,7 @@ Optional overrides (defaults are optimized for RTX 3080):
 ## Demo Workflow (Local)
 
 1. Start Redis.
-2. Run the backend (`uvicorn backend.main:app --reload`).
+2. Run the backend (`npm run dev`).
 3. Run the frontend (`NEXT_PUBLIC_API_BASE=http://localhost:8000 npm run dev`).
 4. Submit a job and watch progress in `/jobs/{job_id}`.
 
