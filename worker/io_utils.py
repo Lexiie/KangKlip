@@ -22,11 +22,13 @@ def download_video(video_url: str, output_path: Path, meta_path: Path) -> None:
     run_cmd([
         "yt-dlp",
         "-f",
-        "b[ext=mp4]",
+        "best[height<=720][ext=mp4]/b[ext=mp4]",
         "-o",
         str(output_path),
         "--write-info-json",
         "--no-playlist",
+        "--concurrent-fragments",
+        "8",
         video_url,
     ])
     info_path = output_path.with_suffix(".info.json")

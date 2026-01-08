@@ -7,7 +7,7 @@ RUN apt-get update \
     python3 \
     python3-pip \
     ffmpeg \
-    git \
+    curl \
     ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
@@ -17,7 +17,8 @@ COPY requirements.txt /app/requirements.txt
 
 RUN python3 -m pip install --upgrade pip \
   && python3 -m pip install --no-cache-dir -r /app/requirements.txt \
-  && python3 -m pip install --no-cache-dir yt-dlp
+  && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
+  && chmod +x /usr/local/bin/yt-dlp
 
 ENV HF_HOME=/models/hf
 ENV HF_HUB_DISABLE_TELEMETRY=1
