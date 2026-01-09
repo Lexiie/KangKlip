@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -57,24 +57,53 @@ def _extract_video_id(video_url: str) -> Optional[str]:
     return None
 
 
+def _fetch_youtube_transcript(video_id: str, language: str):
+    # Prefer the 1.2.x instance API but fall back to the legacy class method.
+    if hasattr(YouTubeTranscriptApi, "fetch"):
+        api = YouTubeTranscriptApi()
+        if language != "auto":
+            return api.fetch(video_id, languages=[language])
+        return api.fetch(video_id)
+    if language != "auto":
+        return YouTubeTranscriptApi.get_transcript(video_id, languages=[language])
+    return YouTubeTranscriptApi.get_transcript(video_id)
+
+
+def _iter_transcript_items(transcript) -> Iterable:
+    if transcript is None:
+        return []
+    if hasattr(transcript, "to_raw_data"):
+        return transcript.to_raw_data()
+    if isinstance(transcript, list):
+        return transcript
+    if isinstance(transcript, str):
+        return []
+    try:
+        return list(transcript)
+    except TypeError:
+        return []
+
+
 def fetch_captions(video_url: str, output_dir: Path, language: str) -> Optional[List[TranscriptEntry]]:
     # Attempt to fetch existing captions using youtube-transcript-api.
     video_id = _extract_video_id(video_url)
     if not video_id:
         return None
     try:
-        if language != "auto":
-            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[language])
-        else:
-            transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        transcript = _fetch_youtube_transcript(video_id, language)
     except Exception:
         return None
 
     entries: List[TranscriptEntry] = []
-    for item in transcript:
-        text = str(item.get("text", "")).strip()
-        start = float(item.get("start", 0.0))
-        duration = float(item.get("duration", 0.0))
+    for item in _iter_transcript_items(transcript):
+        if isinstance(item, dict):
+            text = str(item.get("text", "")).strip()
+            start = float(item.get("start", 0.0))
+            duration = float(item.get("duration", 0.0))
+        else:
+            text = str(getattr(item, "text", "")).strip()
+            start = float(getattr(item, "start", 0.0))
+            duration = float(getattr(item, "duration", 0.0))
         if text:
             entries.append(TranscriptEntry(text=text, start=start, duration=duration))
     return entries
