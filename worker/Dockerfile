@@ -9,6 +9,7 @@ RUN apt-get update \
     ffmpeg \
     curl \
     ca-certificates \
+    unzip \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
