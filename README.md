@@ -1,6 +1,32 @@
 # KangKlip
 
+![Backend](https://img.shields.io/badge/Backend-Express%20%2B%20TypeScript-2f74c0)
+![Frontend](https://img.shields.io/badge/Frontend-Next.js-000000)
+![Worker](https://img.shields.io/badge/Worker-Python-3776ab)
+![GPU](https://img.shields.io/badge/GPU-NVIDIA%20RTX%203080-76b900)
+![Nosana](https://img.shields.io/badge/Compute-Nosana-3a72ff)
+![Storage](https://img.shields.io/badge/Storage-Cloudflare%20R2-f38020)
+![Queue](https://img.shields.io/badge/State-Redis-dc382d)
+
 KangKlip is a deterministic, GPU-first short‑clip generator. Paste a long‑form video URL and get 1–5 vertical clips (30/45/60s) with titles and download links. The system is designed for speed and repeatability: the same input yields the same segments, the same render boundaries, and the same artifacts in storage.
+
+## Table of Contents
+
+- [Why It Stands Out](#why-it-stands-out)
+- [Quick Start](#quick-start)
+- [Services](#services)
+- [Architecture at a Glance](#architecture-at-a-glance)
+- [End-to-End Workflow](#end-to-end-workflow)
+- [API Surface](#api-surface)
+- [Storage Layout (R2)](#storage-layout-r2)
+- [Job State Lifecycle](#job-state-lifecycle)
+- [Backend](#backend)
+- [Worker](#worker)
+- [Demo Workflow (Local)](#demo-workflow-local)
+- [Production Notes](#production-notes)
+- [Troubleshooting](#troubleshooting)
+- [Definition of Done](#definition-of-done)
+- [Frontend](#frontend)
 
 ## Why It Stands Out
 
@@ -131,6 +157,34 @@ Optional overrides (defaults are optimized for RTX 3080):
 4. Submit a job and watch progress in `/jobs/{job_id}`.
 
 ## Production Notes
+
+## Quick Start
+
+```bash
+# 1) Configure env
+cp .env.example .env
+# fill in required variables
+
+# 2) Start Redis (if not already running)
+redis-server --daemonize yes
+
+# 3) Run backend
+cd backend
+npm install
+npm run dev
+
+# 4) Run frontend
+cd ../frontend
+npm install
+NEXT_PUBLIC_API_BASE=http://localhost:8000 npm run dev
+```
+
+## Troubleshooting
+
+- **Job stuck in QUEUED**: check Nosana deployment status and whether `start_error` is set in `/api/jobs/{id}`.
+- **Job RUNNING but no results**: verify callback URL is correct and reachable from Nosana.
+- **No dashboard logs**: ensure worker writes to stdout/stderr (see `worker/main.py` logging).
+- **YouTube transcript empty**: video may have no captions; ASR fallback will be used.
 
 - Callback auth is intentionally skipped for demo speed; add HMAC/signature checks in production.
 - The worker image is expected to include all model weights and dependencies (no runtime installs).
