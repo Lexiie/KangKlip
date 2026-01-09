@@ -30,6 +30,8 @@ def download_video(video_url: str, output_path: Path, meta_path: Path) -> None:
         "yt-dlp",
         "-f",
         "best[height<=720][ext=mp4]/b[ext=mp4]",
+        "--js-runtimes",
+        "bun",
         "-o",
         str(output_path),
         "--write-info-json",

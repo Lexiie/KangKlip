@@ -18,7 +18,9 @@ COPY requirements.txt /app/requirements.txt
 RUN python3 -m pip install --upgrade pip \
   && python3 -m pip install --no-cache-dir -r /app/requirements.txt \
   && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
-  && chmod +x /usr/local/bin/yt-dlp
+  && chmod +x /usr/local/bin/yt-dlp \
+  && curl -fsSL https://bun.sh/install | bash \
+  && ln -s /root/.bun/bin/bun /usr/local/bin/bun
 
 ENV HF_HOME=/models/hf
 ENV HF_HUB_DISABLE_TELEMETRY=1
