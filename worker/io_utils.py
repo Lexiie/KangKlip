@@ -12,9 +12,16 @@ def ensure_dirs(paths: List[Path]) -> None:
 def run_cmd(args: List[str], cwd: Optional[Path] = None) -> None:
     # Execute a subprocess command with error handling.
     try:
-        subprocess.run(args, cwd=cwd, check=True)
+        subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as exc:
-        raise RuntimeError(f"Command failed: {' '.join(args)}") from exc
+        stderr = exc.stderr.strip() if exc.stderr else ""
+        stdout = exc.stdout.strip() if exc.stdout else ""
+        details = ""
+        if stderr:
+            details = f"\n{stderr}"
+        elif stdout:
+            details = f"\n{stdout}"
+        raise RuntimeError(f"Command failed: {' '.join(args)}{details}") from exc
 
 
 def download_video(video_url: str, output_path: Path, meta_path: Path) -> None:
