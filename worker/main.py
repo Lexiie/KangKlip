@@ -41,13 +41,13 @@ def main() -> None:
     edl_path = artifacts_dir / "edl.json"
 
     try:
-        print("download video")
-        download_video(config.video_url, video_path, meta_path)
-        print("extract audio")
-        extract_audio(video_path, audio_path)
         print("fetch captions")
         transcript = fetch_captions(config.video_url, artifacts_dir, config.language)
+        print("download video")
+        download_video(config.video_url, video_path, meta_path)
         if not transcript:
+            print("extract audio")
+            extract_audio(video_path, audio_path)
             print("transcribe audio")
             transcript = transcribe_audio(audio_path, config.language)
         print("chunk transcript")

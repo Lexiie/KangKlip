@@ -2,13 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-try:
-    from .io_utils import run_cmd
-except ImportError as exc:
-    if "attempted relative import" not in str(exc):
-        raise
-    from io_utils import run_cmd
-
+from youtube_transcript_api import YouTubeTranscriptApi
 
 @dataclass
 class TranscriptEntry:
@@ -54,31 +48,36 @@ def _parse_timestamp(value: str) -> float:
     return seconds
 
 
+def _extract_video_id(video_url: str) -> Optional[str]:
+    # Extract YouTube video id from a URL.
+    if "v=" in video_url:
+        return video_url.split("v=")[-1].split("&")[0]
+    if "youtu.be/" in video_url:
+        return video_url.split("youtu.be/")[-1].split("?")[0]
+    return None
+
+
 def fetch_captions(video_url: str, output_dir: Path, language: str) -> Optional[List[TranscriptEntry]]:
-    # Attempt to fetch existing captions using yt-dlp.
-    subtitle_path = output_dir / "captions.vtt"
-    args = [
-        "yt-dlp",
-        "--skip-download",
-        "--write-sub",
-        "--write-auto-sub",
-        "--sub-format",
-        "vtt",
-        "-o",
-        str(output_dir / "captions"),
-    ]
-    if language != "auto":
-        args.extend(["--sub-lang", language])
-    args.append(video_url)
-    
+    # Attempt to fetch existing captions using youtube-transcript-api.
+    video_id = _extract_video_id(video_url)
+    if not video_id:
+        return None
     try:
-        run_cmd(args)
-        for candidate in output_dir.glob("captions*.vtt"):
-            candidate.replace(subtitle_path)
-            break
-        return parse_vtt(subtitle_path)
+        if language != "auto":
+            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[language])
+        else:
+            transcript = YouTubeTranscriptApi.get_transcript(video_id)
     except Exception:
         return None
+
+    entries: List[TranscriptEntry] = []
+    for item in transcript:
+        text = str(item.get("text", "")).strip()
+        start = float(item.get("start", 0.0))
+        duration = float(item.get("duration", 0.0))
+        if text:
+            entries.append(TranscriptEntry(text=text, start=start, duration=duration))
+    return entries
 
 
 def transcribe_audio(audio_path: Path, language: str) -> List[TranscriptEntry]:
