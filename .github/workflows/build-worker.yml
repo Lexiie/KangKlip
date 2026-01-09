@@ -43,6 +43,8 @@ jobs:
         if: github.event_name == 'push'
         run: |
           IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/kangklip-worker
-          docker build -t $IMAGE_NAME:latest -t $IMAGE_NAME:${{ github.sha }} ./worker
+          DATE_TAG=$(date -u +%F)
+          docker build -t $IMAGE_NAME:latest -t $IMAGE_NAME:${{ github.sha }} -t $IMAGE_NAME:${DATE_TAG} ./worker
           docker push $IMAGE_NAME:latest
           docker push $IMAGE_NAME:${{ github.sha }}
+          docker push $IMAGE_NAME:${DATE_TAG}
