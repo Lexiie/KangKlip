@@ -13,7 +13,9 @@ except ImportError as exc:
 
 
 def _has_nvenc() -> bool:
-    # Check whether ffmpeg exposes the h264_nvenc encoder.
+    # Check whether ffmpeg exposes the encoder and the NVENC runtime is present.
+    if not Path("/usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1").exists():
+        return False
     try:
         result = subprocess.run(
             ["ffmpeg", "-hide_banner", "-encoders"],
@@ -40,6 +42,7 @@ def render_clips(video_path: Path, output_dir: Path, clips: List[ClipSpec]) -> L
     preset = "fast" if use_nvenc else "veryfast"
     for clip in clips:
         output_path = output_dir / f"clip_{clip.index:02d}.mp4"
+    try:
         run_cmd(
             [
                 "ffmpeg",
@@ -56,6 +59,28 @@ def render_clips(video_path: Path, output_dir: Path, clips: List[ClipSpec]) -> L
                 video_codec,
                 "-preset",
                 preset,
+                "-c:a",
+                "aac",
+                str(output_path),
+            ]
+        )
+    except RuntimeError:
+        run_cmd(
+            [
+                "ffmpeg",
+                "-y",
+                "-ss",
+                str(clip.start),
+                "-to",
+                str(clip.end),
+                "-i",
+                str(video_path),
+                "-vf",
+                crop_filter,
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
                 "-c:a",
                 "aac",
                 str(output_path),
