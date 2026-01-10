@@ -30,6 +30,21 @@ def main() -> None:
         print(message)
         sys.stdout.flush()
 
+    def report(stage: str, progress: int) -> None:
+        try:
+            callback_backend(
+                config.callback_url,
+                {
+                    "job_id": config.job_id,
+                    "status": "RUNNING",
+                    "stage": stage,
+                    "progress": progress,
+                },
+            )
+        except Exception:
+            # Best-effort progress update; do not fail the job.
+            pass
+
     log(f"worker start job_id={config.job_id}")
 
     base_dir = Path("/work")
@@ -48,12 +63,14 @@ def main() -> None:
 
     try:
         log("fetch captions")
+        report("DOWNLOAD", 5)
         transcript = fetch_captions(config.video_url, artifacts_dir, config.language)
         log("download video")
         download_video(config.video_url, video_path, meta_path)
         if not video_path.exists() or video_path.stat().st_size == 0:
             raise RuntimeError("Downloaded video missing or empty")
         log(f"video size={video_path.stat().st_size}")
+        report("DOWNLOAD", 20)
         stats_path.write_bytes(
             orjson.dumps({"size_bytes": video_path.stat().st_size})
         )
@@ -62,11 +79,13 @@ def main() -> None:
             extract_audio(video_path, audio_path)
             log("transcribe audio")
             transcript = transcribe_audio(audio_path, config.language)
+        report("TRANSCRIPT", 40)
         log("chunk transcript")
         transcript_payload = [entry.__dict__ for entry in transcript]
         transcript_path.write_bytes(orjson.dumps(transcript_payload))
         chunks = chunk_transcript(transcript)
         chunks_path.write_bytes(orjson.dumps(chunks))
+        report("CHUNK", 55)
         log("llm select")
         clips = llm_select_segments(
             config,
@@ -77,12 +96,14 @@ def main() -> None:
         )
         if not clips:
             raise RuntimeError("No valid clips produced")
+        report("SELECT", 65)
         log("render clips")
         edl_path.write_bytes(orjson.dumps(clip_to_edl(config.job_id, clips)))
         clip_files = render_clips(video_path, output_dir, clips)
         for clip_file in clip_files:
             if not clip_file.exists() or clip_file.stat().st_size == 0:
                 raise RuntimeError(f"Rendered clip missing or empty: {clip_file}")
+        report("RENDER", 80)
         manifest = build_manifest(config.job_id, clips)
         manifest["selection"] = get_last_selection()
         log("upload artifacts")
@@ -96,6 +117,7 @@ def main() -> None:
             clip_files,
             manifest,
         )
+        report("UPLOAD", 95)
         log("callback success")
         callback_backend(
             config.callback_url,

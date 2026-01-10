@@ -187,8 +187,8 @@ app.post("/api/callback/nosana", async (req, res) => {
     status: payload.status,
     r2_prefix: payload.r2_prefix,
     error: payload.error,
-    stage: JOB_STAGE.DONE,
-    progress: 100,
+    stage: payload.stage ?? JOB_STAGE.DONE,
+    progress: payload.progress ?? 100,
   });
   return res.json({ ok: true });
 });

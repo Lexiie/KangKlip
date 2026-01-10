@@ -31,6 +31,8 @@ export type CallbackRequest = {
   status: JobStatus;
   r2_prefix?: string;
   error?: string;
+  stage?: JobStage;
+  progress?: number;
 };
 
 export const isValidJobId = (jobId: string): boolean => {
