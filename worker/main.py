@@ -35,6 +35,7 @@ def main() -> None:
 
     video_path = input_dir / "source.mp4"
     meta_path = artifacts_dir / "meta.json"
+    stats_path = artifacts_dir / "video_stats.json"
     audio_path = input_dir / "audio.wav"
     transcript_path = artifacts_dir / "transcript.json"
     chunks_path = artifacts_dir / "chunks.json"
@@ -45,6 +46,12 @@ def main() -> None:
         transcript = fetch_captions(config.video_url, artifacts_dir, config.language)
         print("download video")
         download_video(config.video_url, video_path, meta_path)
+        if not video_path.exists() or video_path.stat().st_size == 0:
+            raise RuntimeError("Downloaded video missing or empty")
+        print(f"video size={video_path.stat().st_size}")
+        stats_path.write_bytes(
+            orjson.dumps({"size_bytes": video_path.stat().st_size})
+        )
         if not transcript:
             print("extract audio")
             extract_audio(video_path, audio_path)
@@ -80,7 +87,7 @@ def main() -> None:
             config.r2_access_key,
             config.r2_secret_key,
             config.r2_prefix,
-            [transcript_path, chunks_path, edl_path, meta_path],
+            [transcript_path, chunks_path, edl_path, meta_path, stats_path],
             clip_files,
             manifest,
         )
