@@ -103,6 +103,12 @@ def main() -> None:
         for clip_file in clip_files:
             if not clip_file.exists() or clip_file.stat().st_size == 0:
                 raise RuntimeError(f"Rendered clip missing or empty: {clip_file}")
+            log(f"clip output={clip_file} size={clip_file.stat().st_size}")
+        try:
+            output_names = ", ".join(p.name for p in output_dir.iterdir())
+            log(f"output dir: {output_names}")
+        except Exception:
+            pass
         report("RENDER", 80)
         manifest = build_manifest(config.job_id, clips)
         manifest["selection"] = get_last_selection()
