@@ -31,8 +31,8 @@ def render_clips(video_path: Path, output_dir: Path, clips: List[ClipSpec]) -> L
     outputs: List[Path] = []
     crop_filter = (
         "crop="
-        "if(gte(iw/ih,9/16),ih*9/16,iw):"
-        "if(gte(iw/ih,9/16),ih,iw*16/9),"
+        "if(gte(iw/ih\,9/16)\,ih*9/16\,iw):"
+        "if(gte(iw/ih\,9/16)\,ih\,iw*16/9),"
         "scale=1080:1920"
     )
     use_nvenc = _has_nvenc()
