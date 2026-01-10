@@ -25,7 +25,12 @@ except ImportError as exc:
 def main() -> None:
     # Execute the full worker pipeline.
     config = load_config()
-    print(f"worker start job_id={config.job_id}")
+
+    def log(message: str) -> None:
+        print(message)
+        sys.stdout.flush()
+
+    log(f"worker start job_id={config.job_id}")
 
     base_dir = Path("/work")
     input_dir = base_dir / "input"
@@ -42,27 +47,27 @@ def main() -> None:
     edl_path = artifacts_dir / "edl.json"
 
     try:
-        print("fetch captions")
+        log("fetch captions")
         transcript = fetch_captions(config.video_url, artifacts_dir, config.language)
-        print("download video")
+        log("download video")
         download_video(config.video_url, video_path, meta_path)
         if not video_path.exists() or video_path.stat().st_size == 0:
             raise RuntimeError("Downloaded video missing or empty")
-        print(f"video size={video_path.stat().st_size}")
+        log(f"video size={video_path.stat().st_size}")
         stats_path.write_bytes(
             orjson.dumps({"size_bytes": video_path.stat().st_size})
         )
         if not transcript:
-            print("extract audio")
+            log("extract audio")
             extract_audio(video_path, audio_path)
-            print("transcribe audio")
+            log("transcribe audio")
             transcript = transcribe_audio(audio_path, config.language)
-        print("chunk transcript")
+        log("chunk transcript")
         transcript_payload = [entry.__dict__ for entry in transcript]
         transcript_path.write_bytes(orjson.dumps(transcript_payload))
         chunks = chunk_transcript(transcript)
         chunks_path.write_bytes(orjson.dumps(chunks))
-        print("llm select")
+        log("llm select")
         clips = llm_select_segments(
             config,
             chunks,
@@ -72,7 +77,7 @@ def main() -> None:
         )
         if not clips:
             raise RuntimeError("No valid clips produced")
-        print("render clips")
+        log("render clips")
         edl_path.write_bytes(orjson.dumps(clip_to_edl(config.job_id, clips)))
         clip_files = render_clips(video_path, output_dir, clips)
         for clip_file in clip_files:
@@ -80,7 +85,7 @@ def main() -> None:
                 raise RuntimeError(f"Rendered clip missing or empty: {clip_file}")
         manifest = build_manifest(config.job_id, clips)
         manifest["selection"] = get_last_selection()
-        print("upload artifacts")
+        log("upload artifacts")
         upload_to_r2(
             config.r2_endpoint,
             config.r2_bucket,
@@ -91,7 +96,7 @@ def main() -> None:
             clip_files,
             manifest,
         )
-        print("callback success")
+        log("callback success")
         callback_backend(
             config.callback_url,
             {"job_id": config.job_id, "status": "SUCCEEDED", "r2_prefix": config.r2_prefix},
@@ -101,7 +106,7 @@ def main() -> None:
         print(f"worker error: {error_message}", file=sys.stderr)
         traceback.print_exc()
         try:
-            print("upload error payload")
+            log("upload error payload")
             upload_error(
                 config.r2_endpoint,
                 config.r2_bucket,
@@ -112,7 +117,7 @@ def main() -> None:
             )
         except Exception:
             pass
-        print("callback failed")
+        log("callback failed")
         callback_backend(
             config.callback_url,
             {"job_id": config.job_id, "status": "FAILED", "error": error_message},
