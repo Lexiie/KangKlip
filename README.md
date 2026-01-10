@@ -79,9 +79,8 @@ jobs/{job_id}/
   chunks.json
   edl.json
   source_meta.json
-  clips/
-    clip_01.mp4
-    clip_02.mp4
+  clip_01.mp4
+  clip_02.mp4
 ```
 
 ## Job State Lifecycle

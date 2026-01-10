@@ -52,7 +52,7 @@ export const signClipUrls = async (
   const client = createClient(config);
   const urls: string[] = [];
   for (const clipFile of clipFiles) {
-    const key = `${prefix.replace(/\/+$/, "")}/clips/${clipFile}`;
+    const key = `${prefix.replace(/\/+$/, "")}/${clipFile}`;
     try {
       const url = await getSignedUrl(
         client,

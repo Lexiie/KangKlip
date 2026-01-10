@@ -32,7 +32,7 @@ def upload_to_r2(
         key = f"{prefix.rstrip('/')}/{artifact.name}"
         client.upload_file(str(artifact), r2_bucket, key)
     for clip in clips:
-        key = f"{prefix.rstrip('/')}/clips/{clip.name}"
+        key = f"{prefix.rstrip('/')}/{clip.name}"
         client.upload_file(str(clip), r2_bucket, key)
         # Verify the clip exists in storage.
         client.head_object(Bucket=r2_bucket, Key=key)
