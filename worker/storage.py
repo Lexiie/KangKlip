@@ -34,6 +34,8 @@ def upload_to_r2(
     for clip in clips:
         key = f"{prefix.rstrip('/')}/clips/{clip.name}"
         client.upload_file(str(clip), r2_bucket, key)
+        # Verify the clip exists in storage.
+        client.head_object(Bucket=r2_bucket, Key=key)
 
 
 def callback_backend(callback_url: str, payload: Dict[str, object]) -> None:

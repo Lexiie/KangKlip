@@ -68,6 +68,9 @@ def main() -> None:
         print("render clips")
         edl_path.write_bytes(orjson.dumps(clip_to_edl(config.job_id, clips)))
         clip_files = render_clips(video_path, output_dir, clips)
+        for clip_file in clip_files:
+            if not clip_file.exists() or clip_file.stat().st_size == 0:
+                raise RuntimeError(f"Rendered clip missing or empty: {clip_file}")
         manifest = build_manifest(config.job_id, clips)
         manifest["selection"] = get_last_selection()
         print("upload artifacts")
