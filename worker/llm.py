@@ -13,13 +13,20 @@ except ImportError as exc:
 
 
 @dataclass
+class SegmentSpec:
+    # Represent a clip segment to stitch.
+    start: float
+    end: float
+    text: str
+
+
+@dataclass
 class ClipSpec:
     # Represent a clip selection for rendering.
     index: int
     title: str
     hook: str
-    start: float
-    end: float
+    segments: List[SegmentSpec]
 
 
 def llm_select_segments(
@@ -43,30 +50,68 @@ def llm_select_segments(
     candidate_lookup = {candidate["id"]: candidate for candidate in candidates}
     clips: List[ClipSpec] = []
     for item in selected:
-        candidate_id = item.get("candidate_id")
-        if not candidate_id or candidate_id not in candidate_lookup:
+        segments: List[SegmentSpec] = []
+        segment_items = item.get("segments")
+        if isinstance(segment_items, list) and segment_items:
+            for seg in segment_items:
+                if not isinstance(seg, dict):
+                    continue
+                if "candidate_id" in seg:
+                    candidate_id = seg.get("candidate_id")
+                    candidate = candidate_lookup.get(candidate_id)
+                    if not candidate:
+                        continue
+                    segments.append(
+                        SegmentSpec(
+                            start=float(candidate["start"]),
+                            end=float(candidate["end"]),
+                            text=str(candidate.get("text", "")),
+                        )
+                    )
+                    continue
+                if "start" in seg and "end" in seg:
+                    segments.append(
+                        SegmentSpec(
+                            start=float(seg["start"]),
+                            end=float(seg["end"]),
+                            text=str(seg.get("text", "")),
+                        )
+                    )
+        else:
+            candidate_id = item.get("candidate_id")
+            candidate = candidate_lookup.get(candidate_id)
+            if candidate:
+                segments.append(
+                    SegmentSpec(
+                        start=float(candidate["start"]),
+                        end=float(candidate["end"]),
+                        text=str(candidate.get("text", "")),
+                    )
+                )
+        if not segments:
             continue
-        candidate = candidate_lookup[candidate_id]
         clips.append(
             ClipSpec(
                 index=len(clips) + 1,
                 title=str(item.get("title", "")),
                 hook=str(item.get("hook", "")),
-                start=float(candidate["start"]),
-                end=float(candidate["end"]),
+                segments=segments,
             )
         )
         if len(clips) >= clip_count:
             break
 
-    clips.sort(key=lambda clip: clip.start)
+    clips.sort(key=lambda clip: clip.segments[0].start)
 
     validated = validate_clips(clips, clip_count, min_seconds, max_seconds)
     if len(validated) < clip_count:
-        fallback = heuristic_select(chunks, clip_count, min_seconds, max_seconds)
-        merged = validated + [clip for clip in fallback if clip not in validated]
-        merged.sort(key=lambda clip: clip.start)
-        validated = validate_clips(merged, clip_count, min_seconds, max_seconds)
+        validated = _extend_with_heuristic(
+            validated,
+            candidates,
+            clip_count,
+            min_seconds,
+            max_seconds,
+        )
     if validated:
         validated = reindex_clips(validated)
         _set_selection("llm_api", _build_endpoint(config))
@@ -166,10 +211,10 @@ def _build_prompt(
     # Build deterministic prompt for rerank selection.
     return (
         "Select highlight clips from candidates. Return JSON only. "
-        "Use only candidate_id from the list. "
+        "Each clip must include either candidate_id or segments (list of candidate_id). "
         f"job_id={job_id} language={language} clip_count={clip_count} "
         f"min_seconds={min_seconds} max_seconds={max_seconds}. "
-        "Response schema: {\"selected\":[{\"candidate_id\":\"c001\",\"title\":\"...\",\"hook\":\"...\",\"score\":0.0}]} "
+        "Response schema: {\"selected\":[{\"title\":\"...\",\"hook\":\"...\",\"segments\":[{\"candidate_id\":\"c001\"}]}]} "
         "Candidates: "
         + json.dumps(candidates)
     )
@@ -208,21 +253,113 @@ def heuristic_select(
     # Use a deterministic fallback to pick early chunks for clips.
     clips: List[ClipSpec] = []
     candidates = build_candidates(chunks, min_seconds, max_seconds)
-    for idx, candidate in enumerate(candidates[:clip_count], start=1):
-        start = float(candidate["start"])
-        end = float(candidate["end"])
-        if end - start < min_seconds:
-            end = start + min_seconds
+    clips = _extend_with_heuristic(
+        [],
+        candidates,
+        clip_count,
+        min_seconds,
+        max_seconds,
+    )
+    return validate_clips(clips, clip_count, min_seconds, max_seconds)
+
+
+def _extend_with_heuristic(
+    current: List[ClipSpec],
+    candidates: List[Dict[str, object]],
+    clip_count: int,
+    min_seconds: int,
+    max_seconds: int,
+) -> List[ClipSpec]:
+    # Fill remaining slots with non-overlapping segments.
+    clips = list(sorted(current, key=lambda clip: clip.segments[0].start))
+    used = {
+        (segment.start, segment.end)
+        for clip in clips
+        for segment in clip.segments
+    }
+    cursor = 0
+    for clip in clips:
+        clip.segments, cursor = _fill_segments(
+            clip.segments,
+            candidates,
+            used,
+            min_seconds,
+            max_seconds,
+            cursor,
+        )
+        used.update((segment.start, segment.end) for segment in clip.segments)
+    next_index = len(clips) + 1
+    while len(clips) < clip_count:
+        segments, cursor = _fill_segments(
+            [],
+            candidates,
+            used,
+            min_seconds,
+            max_seconds,
+            cursor,
+        )
+        if not segments:
+            break
         clips.append(
             ClipSpec(
-                index=idx,
-                title=f"Clip {idx}",
-                hook=str(candidate.get("text", ""))[:120],
-                start=start,
-                end=end,
+                index=next_index,
+                title=f"Clip {next_index}",
+                hook=str(segments[0].text)[:120],
+                segments=segments,
             )
         )
-    return validate_clips(clips, clip_count, min_seconds, max_seconds)
+        used.update((segment.start, segment.end) for segment in segments)
+        next_index += 1
+    return clips
+
+
+def _fill_segments(
+    current: List[SegmentSpec],
+    candidates: List[Dict[str, object]],
+    used: set,
+    min_seconds: int,
+    max_seconds: int,
+    cursor: int,
+) -> tuple[List[SegmentSpec], int]:
+    # Extend segments to reach target duration without overlap.
+    segments = [
+        segment
+        for segment in sorted(current, key=lambda seg: seg.start)
+        if segment.end > segment.start
+    ]
+    segments = _normalize_segments(segments, max_seconds)
+    duration = sum(seg.end - seg.start for seg in segments)
+    last_end = segments[-1].end if segments else -1.0
+    idx = cursor
+    while duration < max_seconds and idx < len(candidates):
+        candidate = candidates[idx]
+        idx += 1
+        start = float(candidate["start"])
+        end = float(candidate["end"])
+        if (start, end) in used:
+            continue
+        if start < last_end:
+            continue
+        if end <= start:
+            continue
+        remaining = max_seconds - duration
+        seg_end = min(end, start + remaining)
+        if seg_end - start <= 0:
+            continue
+        segments.append(
+            SegmentSpec(
+                start=start,
+                end=seg_end,
+                text=str(candidate.get("text", "")),
+            )
+        )
+        duration += seg_end - start
+        last_end = seg_end
+        if duration >= max_seconds:
+            break
+    if duration < min_seconds:
+        return [], idx
+    return _normalize_segments(segments, max_seconds), idx
 
 
 def validate_clips(
@@ -233,34 +370,82 @@ def validate_clips(
 ) -> List[ClipSpec]:
     # Validate clip boundaries, durations, and overlaps.
     sanitized: List[ClipSpec] = []
-    last_end = -1.0
     for clip in clips:
-        if clip.start < 0 or clip.end <= clip.start:
+        segments = _normalize_segments(list(clip.segments), max_seconds)
+        total = sum(seg.end - seg.start for seg in segments)
+        if total < min_seconds or total > max_seconds:
             continue
-        duration = clip.end - clip.start
-        if duration < min_seconds or duration > max_seconds:
+        if not segments:
             continue
-        if clip.start < last_end:
+        sanitized.append(
+            ClipSpec(
+                index=clip.index,
+                title=clip.title,
+                hook=clip.hook,
+                segments=segments,
+            )
+        )
+    sanitized.sort(key=lambda clip: clip.segments[0].start)
+    filtered: List[ClipSpec] = []
+    last_end = -1.0
+    for clip in sanitized:
+        start = clip.segments[0].start
+        end = clip.segments[-1].end
+        if start < last_end:
             continue
-        sanitized.append(clip)
-        last_end = clip.end
-    return sanitized[:clip_count]
+        filtered.append(clip)
+        last_end = end
+    return filtered[:clip_count]
 
 
 def reindex_clips(clips: List[ClipSpec]) -> List[ClipSpec]:
     # Reassign sequential indices to avoid duplicate output filenames.
     reindexed: List[ClipSpec] = []
     for idx, clip in enumerate(clips, start=1):
+        title = clip.title
+        prefix = "clip "
+        if isinstance(title, str) and title.lower().startswith(prefix):
+            suffix = title[len(prefix) :].strip()
+            if not suffix or suffix.isdigit():
+                title = f"Clip {idx}"
         reindexed.append(
             ClipSpec(
                 index=idx,
-                title=clip.title,
+                title=title,
                 hook=clip.hook,
-                start=clip.start,
-                end=clip.end,
+                segments=clip.segments,
             )
         )
     return reindexed
+
+
+def _normalize_segments(segments: List[SegmentSpec], target_seconds: int) -> List[SegmentSpec]:
+    # Normalize segments to be ordered, non-overlapping, and within target duration.
+    normalized: List[SegmentSpec] = []
+    last_end = -1.0
+    remaining = float(target_seconds)
+    for segment in sorted(segments, key=lambda seg: seg.start):
+        if segment.end <= segment.start:
+            continue
+        if segment.start < last_end:
+            continue
+        if remaining <= 0:
+            break
+        seg_len = segment.end - segment.start
+        if seg_len > remaining:
+            seg_end = segment.start + remaining
+        else:
+            seg_end = segment.end
+        normalized.append(
+            SegmentSpec(
+                start=segment.start,
+                end=seg_end,
+                text=segment.text,
+            )
+        )
+        remaining -= seg_end - segment.start
+        last_end = seg_end
+    return normalized
 
 
 def build_manifest(job_id: str, clips: List[ClipSpec]) -> Dict[str, object]:
@@ -272,9 +457,17 @@ def build_manifest(job_id: str, clips: List[ClipSpec]) -> Dict[str, object]:
                 "index": clip.index,
                 "title": clip.title,
                 "hook": clip.hook,
-                "start": clip.start,
-                "end": clip.end,
-                "duration": int(clip.end - clip.start),
+                "start": clip.segments[0].start,
+                "end": clip.segments[-1].end,
+                "duration": int(sum(seg.end - seg.start for seg in clip.segments)),
+                "segments": [
+                    {
+                        "start": seg.start,
+                        "end": seg.end,
+                        "text": seg.text,
+                    }
+                    for seg in clip.segments
+                ],
                 "file": f"clip_{clip.index:02d}.mp4",
             }
             for clip in clips
@@ -291,8 +484,14 @@ def clip_to_edl(job_id: str, clips: List[ClipSpec]) -> Dict[str, object]:
                 "index": clip.index,
                 "title": clip.title,
                 "hook": clip.hook,
-                "start": clip.start,
-                "end": clip.end,
+                "segments": [
+                    {
+                        "start": seg.start,
+                        "end": seg.end,
+                        "text": seg.text,
+                    }
+                    for seg in clip.segments
+                ],
             }
             for clip in clips
         ],
