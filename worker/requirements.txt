@@ -6,3 +6,4 @@ ctranslate2==4.5.0
 huggingface-hub==0.26.2
 requests==2.32.3
 youtube-transcript-api==1.2.3
+mediapipe==0.10.14

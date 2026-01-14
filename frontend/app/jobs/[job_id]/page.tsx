@@ -155,12 +155,32 @@ export default function JobPage() {
                   </p>
                   <span className="text-xs text-slate-500">{clip.duration}s</span>
                 </div>
-                <a
-                  href={clip.download_url}
-                  className="inline-flex w-full items-center justify-center rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-600"
-                >
-                  Open clip
-                </a>
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="aspect-[9/16] w-full">
+                    <video
+                      className="h-full w-full object-cover"
+                      src={clip.download_url}
+                      controls
+                      playsInline
+                      preload="metadata"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <a
+                    href={clip.download_url}
+                    className="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
+                  >
+                    Open clip
+                  </a>
+                  <a
+                    href={clip.download_url}
+                    download
+                    className="inline-flex w-full items-center justify-center rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-600"
+                  >
+                    Download
+                  </a>
+                </div>
               </div>
             ))}
           </div>

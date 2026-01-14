@@ -10,6 +10,8 @@ RUN apt-get update \
     curl \
     ca-certificates \
     unzip \
+    libgl1 \
+    libglib2.0-0 \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

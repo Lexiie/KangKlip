@@ -60,7 +60,7 @@ export const signClipUrls = async (
           Bucket: config.r2Bucket,
           Key: key,
         }),
-        { expiresIn: 3600 }
+        { expiresIn: 21600 }
       );
       urls.push(url);
     } catch (err) {

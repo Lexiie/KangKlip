@@ -1,6 +1,7 @@
 from pathlib import Path
+import json
 import subprocess
-from typing import Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Tuple
 
 try:
     from .llm import ClipSpec
@@ -14,6 +15,113 @@ except ImportError as exc:
     from transcript import TranscriptEntry
 
 
+def _probe_video_info(video_path: Path) -> Tuple[int, int, int, int, int]:
+    # Get source video dimensions and rotation metadata.
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height:stream_tags=rotate:stream_side_data",
+            "-of",
+            "json",
+            str(video_path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    payload = json.loads(result.stdout)
+    streams = payload.get("streams", [])
+    if not streams:
+        raise RuntimeError("Unable to probe video dimensions")
+    stream = streams[0]
+    width = int(stream.get("width", 0))
+    height = int(stream.get("height", 0))
+    if width <= 0 or height <= 0:
+        raise RuntimeError("Invalid video dimensions")
+    rotation = _extract_rotation(stream)
+    display_width, display_height = width, height
+    if rotation in (90, 270):
+        display_width, display_height = height, width
+    return width, height, display_width, display_height, rotation
+
+
+def _extract_rotation(stream: Dict[str, object]) -> int:
+    # Extract rotation metadata if present.
+    tags = stream.get("tags") or {}
+    rotate_tag = tags.get("rotate") if isinstance(tags, dict) else None
+    rotation = 0
+    if rotate_tag is not None:
+        try:
+            rotation = int(rotate_tag)
+        except (TypeError, ValueError):
+            rotation = 0
+    if rotation:
+        return rotation % 360
+    side_data = stream.get("side_data_list") or []
+    if isinstance(side_data, list):
+        for item in side_data:
+            if not isinstance(item, dict):
+                continue
+            value = item.get("rotation")
+            if value is None:
+                continue
+            try:
+                return int(value) % 360
+            except (TypeError, ValueError):
+                continue
+    return 0
+
+
+def _clamp(value: float, lower: float, upper: float) -> float:
+    return max(lower, min(upper, value))
+
+
+def _rotation_filter(rotation: int) -> str:
+    # Build a rotation filter for display orientation.
+    if rotation == 90:
+        return "transpose=1"
+    if rotation == 180:
+        return "transpose=2,transpose=2"
+    if rotation == 270:
+        return "transpose=2"
+    return ""
+
+
+def _build_crop_filter(
+    width: int,
+    height: int,
+    face_center: Optional[Tuple[float, float]],
+    rotation: int,
+) -> str:
+    # Build a 9:16 crop that keeps the face in frame when available.
+    target_ratio = 9 / 16
+    source_ratio = width / height
+    if source_ratio >= target_ratio:
+        crop_h = height
+        crop_w = int(round(height * target_ratio))
+        center_x = face_center[0] if face_center else width / 2
+        max_x = max(0, width - crop_w)
+        crop_x = int(round(_clamp(center_x - crop_w / 2, 0, max_x)))
+        crop_y = 0
+    else:
+        crop_w = width
+        crop_h = int(round(width / target_ratio))
+        center_y = face_center[1] if face_center else height / 2
+        max_y = max(0, height - crop_h)
+        crop_x = 0
+        crop_y = int(round(_clamp(center_y - crop_h / 2, 0, max_y)))
+    rotate = _rotation_filter(rotation)
+    crop = f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y},scale=1080:1920"
+    if rotate:
+        return f"{rotate},{crop}"
+    return crop
+
+
 def _format_ass_time(seconds: float) -> str:
     # Format seconds into ASS timestamp (H:MM:SS.cc).
     total_cs = max(0, int(round(seconds * 100)))
@@ -24,32 +132,31 @@ def _format_ass_time(seconds: float) -> str:
     return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
 
 
-def _wrap_caption(text: str, max_chars: int = 28, max_lines: int = 3) -> List[str]:
-    # Wrap captions into short lines to fit 9:16 safely.
+def _wrap_caption(text: str, max_chars: int = 24, max_lines: int = 2) -> List[List[str]]:
+    # Wrap caption words into short lines to fit 9:16 safely.
     words = [word for word in text.replace("\n", " ").split(" ") if word]
     if not words:
         return []
-    lines: List[str] = []
+    lines: List[List[str]] = []
     current: List[str] = []
     length = 0
     for word in words:
         new_len = len(word) if not current else length + 1 + len(word)
         if current and new_len > max_chars:
-            lines.append(" ".join(current))
+            lines.append(current)
             current = [word]
             length = len(word)
         else:
             current.append(word)
             length = new_len
     if current:
-        lines.append(" ".join(current))
+        lines.append(current)
     if len(lines) <= max_lines:
         return lines
     kept = lines[: max_lines - 1]
-    remaining = " ".join(lines[max_lines - 1 :])
-    if len(remaining) > max_chars:
-        remaining = remaining[: max(0, max_chars - 3)].rstrip() + "..."
-    kept.append(remaining)
+    remaining = [word for line in lines[max_lines - 1 :] for word in line]
+    if remaining:
+        kept.append(remaining)
     return kept
 
 
@@ -59,12 +166,53 @@ def _ass_escape_line(line: str) -> str:
 
 
 def _ass_escape(text: str) -> str:
-    # Wrap and escape caption text for ASS.
-    lines = _wrap_caption(text)
+    # Escape caption text for ASS.
+    return _ass_escape_line(text)
+
+
+def _build_karaoke_text(
+    text: str,
+    duration: float,
+    max_chars: int = 24,
+    max_lines: int = 2,
+) -> str:
+    # Build karaoke ASS text with per-word timing.
+    lines = _wrap_caption(text, max_chars=max_chars, max_lines=max_lines)
     if not lines:
         return ""
-    escaped = [_ass_escape_line(line) for line in lines]
-    return r"\N".join(escaped)
+    words = [word for line in lines for word in line]
+    if not words:
+        return ""
+    total_cs = max(1, int(round(duration * 100)))
+    if total_cs <= len(words):
+        allocations = [1] * total_cs + [0] * (len(words) - total_cs)
+    else:
+        weights = [max(1, len(word)) for word in words]
+        weight_sum = sum(weights)
+        allocations = [max(1, int(round(total_cs * (w / weight_sum)))) for w in weights]
+        delta = total_cs - sum(allocations)
+        idx = 0
+        guard = 0
+        while delta != 0 and allocations and guard < len(allocations) * 4:
+            if delta > 0:
+                allocations[idx] += 1
+                delta -= 1
+            else:
+                if allocations[idx] > 1:
+                    allocations[idx] -= 1
+                    delta += 1
+            idx = (idx + 1) % len(allocations)
+            guard += 1
+    chunks: List[str] = []
+    word_index = 0
+    for line in lines:
+        line_parts: List[str] = []
+        for word in line:
+            duration_cs = allocations[word_index]
+            word_index += 1
+            line_parts.append(f"{{\\k{duration_cs}}}{_ass_escape(word)}")
+        chunks.append(" ".join(line_parts))
+    return r"\N".join(chunks)
 
 
 def _collect_entries(
@@ -97,24 +245,26 @@ def _build_ass_subtitles(
                 entry_end = min(segment.end, entry.start + entry.duration)
                 rel_start = offset + max(0.0, entry_start - segment.start)
                 rel_end = offset + max(0.0, entry_end - segment.start)
-                text = _ass_escape(entry.text)
+                text = _build_karaoke_text(entry.text, entry_end - entry_start)
                 if not text:
                     continue
                 events.append(
                     "Dialogue: 0,{start},{end},Default,,0,0,0,,{text}".format(
                         start=_format_ass_time(rel_start),
                         end=_format_ass_time(rel_end),
-                        text=text,
+                        text="{\\fad(60,60)\\t(0,180,\\fscx105\\fscy105)\\t(180,260,\\fscx100\\fscy100)}"
+                        + text,
                     )
                 )
         elif segment.text:
-            text = _ass_escape(segment.text)
+            text = _build_karaoke_text(segment.text, segment_duration)
             if text:
                 events.append(
                     "Dialogue: 0,{start},{end},Default,,0,0,0,,{text}".format(
                         start=_format_ass_time(offset),
                         end=_format_ass_time(offset + segment_duration),
-                        text=text,
+                        text="{\\fad(60,60)\\t(0,180,\\fscx105\\fscy105)\\t(180,260,\\fscx100\\fscy100)}"
+                        + text,
                     )
                 )
         offset += segment_duration
@@ -130,7 +280,7 @@ def _build_ass_subtitles(
         "",
         "[V4+ Styles]",
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        "Style: Default,DejaVu Sans,64,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,3,1,2,80,80,140,1",
+        "Style: Default,DejaVu Sans,80,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,1,2,80,80,150,1",
         "",
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
@@ -189,7 +339,7 @@ def _has_audio(video_path: Path) -> bool:
 def _render_montage(
     video_path: Path,
     output_path: Path,
-    crop_filter: str,
+    crop_filters: List[str],
     clip: ClipSpec,
     video_codec: str,
     preset: str,
@@ -200,6 +350,7 @@ def _render_montage(
     filters: List[str] = []
     for idx, segment in enumerate(clip.segments):
         v_label = f"v{idx}"
+        crop_filter = crop_filters[idx]
         filters.append(
             "[0:v]trim=start={start}:end={end},setpts=PTS-STARTPTS,{crop}[{label}]".format(
                 start=segment.start,
@@ -236,6 +387,7 @@ def _render_montage(
     args = [
         "ffmpeg",
         "-y",
+        "-noautorotate",
         "-i",
         str(video_path),
         "-filter_complex",
@@ -246,6 +398,8 @@ def _render_montage(
         video_codec,
         "-preset",
         preset,
+        "-metadata:s:v:0",
+        "rotate=0",
     ]
     if has_audio:
         args += ["-map", "[a]", "-c:a", "aac"]
@@ -263,16 +417,12 @@ def render_clips(
 ) -> List[Path]:
     # Render each clip using ffmpeg.
     outputs: List[Path] = []
-    crop_filter = (
-        "crop="
-        "if(gte(iw/ih\,9/16)\,ih*9/16\,iw):"
-        "if(gte(iw/ih\,9/16)\,ih\,iw*16/9),"
-        "scale=1080:1920"
-    )
+    width, height, display_width, display_height, rotation = _probe_video_info(video_path)
     use_nvenc = _has_nvenc()
     video_codec = "h264_nvenc" if use_nvenc else "libx264"
     preset = "fast" if use_nvenc else "veryfast"
     has_audio = _has_audio(video_path)
+    face_centers = _find_face_centers(video_path, clips, rotation)
     for clip in clips:
         output_path = output_dir / f"clip_{clip.index:02d}.mp4"
         subtitle_path = None
@@ -283,15 +433,23 @@ def render_clips(
                 output_dir / f"clip_{clip.index:02d}.ass",
             )
         subtitles = _subtitle_filter(subtitle_path) if subtitle_path else None
+        crop_filters = _build_clip_crop_filters(
+            display_width,
+            display_height,
+            clip,
+            face_centers.get(clip.index),
+            rotation,
+        )
         try:
             if len(clip.segments) == 1:
                 segment = clip.segments[0]
-                vf = crop_filter
+                vf = crop_filters[0]
                 if subtitles:
                     vf = f"{vf},{subtitles}"
                 args = [
                     "ffmpeg",
                     "-y",
+                    "-noautorotate",
                     "-ss",
                     str(segment.start),
                     "-to",
@@ -304,6 +462,8 @@ def render_clips(
                     video_codec,
                     "-preset",
                     preset,
+                    "-metadata:s:v:0",
+                    "rotate=0",
                 ]
                 if has_audio:
                     args += ["-c:a", "aac"]
@@ -315,7 +475,7 @@ def render_clips(
                 _render_montage(
                     video_path,
                     output_path,
-                    crop_filter,
+                    crop_filters,
                     clip,
                     video_codec,
                     preset,
@@ -325,12 +485,13 @@ def render_clips(
         except RuntimeError:
             if len(clip.segments) == 1:
                 segment = clip.segments[0]
-                vf = crop_filter
+                vf = crop_filters[0]
                 if subtitles:
                     vf = f"{vf},{subtitles}"
                 args = [
                     "ffmpeg",
                     "-y",
+                    "-noautorotate",
                     "-ss",
                     str(segment.start),
                     "-to",
@@ -343,6 +504,8 @@ def render_clips(
                     "libx264",
                     "-preset",
                     "veryfast",
+                    "-metadata:s:v:0",
+                    "rotate=0",
                 ]
                 if has_audio:
                     args += ["-c:a", "aac"]
@@ -354,7 +517,7 @@ def render_clips(
                 _render_montage(
                     video_path,
                     output_path,
-                    crop_filter,
+                    crop_filters,
                     clip,
                     "libx264",
                     "veryfast",
@@ -363,3 +526,103 @@ def render_clips(
                 )
         outputs.append(output_path)
     return outputs
+
+
+def _find_face_centers(
+    video_path: Path,
+    clips: List[ClipSpec],
+    rotation: int,
+) -> Dict[int, List[Optional[Tuple[float, float]]]]:
+    # Detect face centers for each segment in each clip using MediaPipe.
+    try:
+        import cv2
+        import mediapipe as mp
+    except Exception:
+        return {clip.index: [None for _ in clip.segments] for clip in clips}
+
+    detector = mp.solutions.face_detection.FaceDetection(
+        model_selection=0,
+        min_detection_confidence=0.5,
+    )
+
+    capture = cv2.VideoCapture(str(video_path))
+    if not capture.isOpened():
+        return {clip.index: [None for _ in clip.segments] for clip in clips}
+
+    def rotate_frame(frame):
+        if rotation == 90:
+            return cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        if rotation == 180:
+            return cv2.rotate(frame, cv2.ROTATE_180)
+        if rotation == 270:
+            return cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        return frame
+
+    def detect_center(frame) -> Optional[Tuple[float, float]]:
+        frame = rotate_frame(frame)
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        result = detector.process(rgb)
+        if not result.detections:
+            return None
+        height, width = frame.shape[:2]
+        best = None
+        best_area = 0.0
+        for detection in result.detections:
+            bbox = detection.location_data.relative_bounding_box
+            box_w = bbox.width * width
+            box_h = bbox.height * height
+            area = box_w * box_h
+            if area > best_area:
+                best_area = area
+                center_x = (bbox.xmin * width) + box_w / 2
+                center_y = (bbox.ymin * height) + box_h / 2
+                best = (center_x, center_y)
+        return best
+
+    centers: Dict[int, List[Optional[Tuple[float, float]]]] = {}
+    for clip in clips:
+        clip_centers: List[Optional[Tuple[float, float]]] = []
+        for segment in clip.segments:
+            duration = max(0.0, segment.end - segment.start)
+            if duration <= 0:
+                clip_centers.append(None)
+                continue
+            sample_count = min(20, max(4, int(duration * 2)))
+            step = duration / sample_count
+            samples: List[Tuple[float, float]] = []
+            for idx in range(sample_count):
+                timestamp = segment.start + idx * step
+                capture.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
+                ok, frame = capture.read()
+                if not ok:
+                    continue
+                center = detect_center(frame)
+                if center:
+                    samples.append(center)
+            if samples:
+                xs = sorted(point[0] for point in samples)
+                ys = sorted(point[1] for point in samples)
+                mid = len(samples) // 2
+                clip_centers.append((xs[mid], ys[mid]))
+            else:
+                clip_centers.append(None)
+        centers[clip.index] = clip_centers
+    capture.release()
+    return centers
+
+
+def _build_clip_crop_filters(
+    width: int,
+    height: int,
+    clip: ClipSpec,
+    centers: Optional[List[Optional[Tuple[float, float]]]],
+    rotation: int,
+) -> List[str]:
+    # Build per-segment crop filters using detected face centers.
+    filters: List[str] = []
+    for idx, _segment in enumerate(clip.segments):
+        center = None
+        if centers and idx < len(centers):
+            center = centers[idx]
+        filters.append(_build_crop_filter(width, height, center, rotation))
+    return filters
