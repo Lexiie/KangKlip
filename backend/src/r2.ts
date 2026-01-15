@@ -69,3 +69,18 @@ export const signClipUrls = async (
   }
   return urls;
 };
+
+// Fetch an object stream (supports optional Range header).
+export const getObjectStream = async (
+  config: Config,
+  key: string,
+  range?: string
+) => {
+  const client = createClient(config);
+  const command = new GetObjectCommand({
+    Bucket: config.r2Bucket,
+    Key: key,
+    Range: range,
+  });
+  return client.send(command);
+};

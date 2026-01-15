@@ -13,7 +13,9 @@ type JobStatusResponse = {
 type ClipResult = {
   title: string;
   duration: number;
+  file: string;
   download_url: string;
+  stream_url: string;
 };
 
 type JobResultsResponse = {
@@ -159,12 +161,10 @@ export default function JobPage() {
                   <div className="aspect-[9/16] w-full">
                     <video
                       className="h-full w-full object-cover"
-                      src={clip.download_url}
+                      src={`${apiBase}${clip.stream_url}`}
                       controls
                       playsInline
                       preload="metadata"
-                      crossOrigin="anonymous"
-                      muted
                     />
                   </div>
                 </div>

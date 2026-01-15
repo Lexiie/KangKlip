@@ -119,7 +119,7 @@ def _build_crop_filter(
         crop_x = 0
         crop_y = int(round(_clamp(center_y - crop_h / 2, 0, max_y)))
     rotate = _rotation_filter(rotation)
-    crop = f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y},scale=1080:1920"
+    crop = f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y},scale=1080:1920:flags=lanczos"
     if rotate:
         return f"{rotate},{crop}"
     return crop
@@ -441,7 +441,7 @@ def render_clips(
         "crop="
         "if(gte(iw/ih\\,9/16)\\,ih*9/16\\,iw):"
         "if(gte(iw/ih\\,9/16)\\,ih\\,iw*16/9),"
-        "scale=1080:1920"
+        "scale=1080:1920:flags=lanczos"
     )
     use_manual_rotation = True
     rotation = 0
@@ -583,6 +583,7 @@ def _find_face_centers(
         import cv2
         import mediapipe as mp
     except Exception:
+        print("face detect: mediapipe unavailable, fallback to center crop")
         return {clip.index: [None for _ in clip.segments] for clip in clips}
 
     detector = mp.solutions.face_detection.FaceDetection(
@@ -592,6 +593,7 @@ def _find_face_centers(
 
     capture = cv2.VideoCapture(str(video_path))
     if not capture.isOpened():
+        print("face detect: failed to open video, fallback to center crop")
         return {clip.index: [None for _ in clip.segments] for clip in clips}
 
     def rotate_frame(frame):
@@ -627,6 +629,7 @@ def _find_face_centers(
     centers: Dict[int, List[Optional[Tuple[float, float]]]] = {}
     for clip in clips:
         clip_centers: List[Optional[Tuple[float, float]]] = []
+        detected = 0
         for segment in clip.segments:
             duration = max(0.0, segment.end - segment.start)
             if duration <= 0:
@@ -649,8 +652,10 @@ def _find_face_centers(
                 ys = sorted(point[1] for point in samples)
                 mid = len(samples) // 2
                 clip_centers.append((xs[mid], ys[mid]))
+                detected += 1
             else:
                 clip_centers.append(None)
+        print(f"face detect: clip {clip.index} segments {len(clip.segments)} detected {detected}")
         centers[clip.index] = clip_centers
     capture.release()
     return centers

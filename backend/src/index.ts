@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import { Readable } from "stream";
 import { ulid } from "ulid";
 import { getConfig } from "./config.js";
 import { JobStore } from "./storage.js";
@@ -11,7 +12,7 @@ import {
   validateJobCreate,
 } from "./models.js";
 import { createDeployment, createNosanaClient, fetchMarketCache, startDeployment } from "./nosana.js";
-import { loadManifest, signClipUrls } from "./r2.js";
+import { getObjectStream, loadManifest, signClipUrls } from "./r2.js";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -163,11 +164,68 @@ app.get("/api/jobs/:jobId/results", async (req, res) => {
     const clipFiles = clips.map((clip) => String(clip.file ?? ""));
     const urls = await signClipUrls(config, r2Prefix, clipFiles);
     const results = clips.map((clip, index) => ({
+      file: String(clip.file ?? ""),
       title: String(clip.title ?? ""),
       duration: Number(clip.duration ?? 0),
       download_url: urls[index],
+      stream_url: `/api/jobs/${jobId}/clips/${String(clip.file ?? "")}`,
     }));
     return res.json({ clips: results });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return res.status(502).json({ detail: message });
+  }
+});
+
+app.get("/api/jobs/:jobId/clips/:clipFile", async (req, res) => {
+  const jobId = req.params.jobId;
+  const clipFile = req.params.clipFile;
+  const data = await store.get(jobId);
+  if (!data) {
+    return res.status(404).json({ detail: "job not found" });
+  }
+  if (data.status !== JOB_STATUS.SUCCEEDED) {
+    return res.status(409).json({ detail: "job not completed" });
+  }
+  const r2Prefix = data.r2_prefix as string | undefined;
+  if (!r2Prefix) {
+    return res.status(500).json({ detail: "missing r2 prefix" });
+  }
+  try {
+    const manifest = await loadManifest(config, r2Prefix);
+    const clips = (manifest.clips as Array<Record<string, unknown>>) || [];
+    const allowed = new Set(clips.map((clip) => String(clip.file ?? "")));
+    if (!allowed.has(clipFile)) {
+      return res.status(404).json({ detail: "clip not found" });
+    }
+    const key = `${r2Prefix.replace(/\/+$/, "")}/${clipFile}`;
+    const range = req.headers.range;
+    const response = await getObjectStream(config, key, range);
+    if (!response.Body) {
+      return res.status(502).json({ detail: "missing clip body" });
+    }
+    if (response.ContentType) {
+      res.setHeader("Content-Type", response.ContentType);
+    }
+    if (response.ContentLength) {
+      res.setHeader("Content-Length", String(response.ContentLength));
+    }
+    if (response.ContentRange) {
+      res.status(206);
+      res.setHeader("Content-Range", response.ContentRange);
+    }
+    if (response.AcceptRanges) {
+      res.setHeader("Accept-Ranges", response.AcceptRanges);
+    }
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    const body = response.Body as unknown;
+    if (body && typeof (body as { pipe?: unknown }).pipe === "function") {
+      (body as Readable).pipe(res);
+    } else if (body && typeof (body as ReadableStream).getReader === "function") {
+      Readable.fromWeb(body as ReadableStream).pipe(res);
+    } else {
+      return res.status(502).json({ detail: "unsupported clip body" });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return res.status(502).json({ detail: message });
