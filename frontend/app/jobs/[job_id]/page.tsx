@@ -163,6 +163,8 @@ export default function JobPage() {
                       controls
                       playsInline
                       preload="metadata"
+                      crossOrigin="anonymous"
+                      muted
                     />
                   </div>
                 </div>

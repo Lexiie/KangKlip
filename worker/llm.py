@@ -269,6 +269,7 @@ def _extend_with_heuristic(
     clip_count: int,
     min_seconds: int,
     max_seconds: int,
+    allow_overlap: bool = False,
 ) -> List[ClipSpec]:
     # Fill remaining slots with non-overlapping segments.
     clips = list(sorted(current, key=lambda clip: clip.segments[0].start))
@@ -286,6 +287,7 @@ def _extend_with_heuristic(
             min_seconds,
             max_seconds,
             cursor,
+            allow_overlap,
         )
         used.update((segment.start, segment.end) for segment in clip.segments)
     next_index = len(clips) + 1
@@ -297,9 +299,15 @@ def _extend_with_heuristic(
             min_seconds,
             max_seconds,
             cursor,
+            allow_overlap,
         )
         if not segments:
-            break
+            if allow_overlap:
+                break
+            allow_overlap = True
+            used = set()
+            cursor = 0
+            continue
         clips.append(
             ClipSpec(
                 index=next_index,
@@ -320,6 +328,7 @@ def _fill_segments(
     min_seconds: int,
     max_seconds: int,
     cursor: int,
+    allow_overlap: bool,
 ) -> tuple[List[SegmentSpec], int]:
     # Extend segments to reach target duration without overlap.
     segments = [
@@ -336,7 +345,7 @@ def _fill_segments(
         idx += 1
         start = float(candidate["start"])
         end = float(candidate["end"])
-        if (start, end) in used:
+        if not allow_overlap and (start, end) in used:
             continue
         if start < last_end:
             continue
@@ -386,16 +395,7 @@ def validate_clips(
             )
         )
     sanitized.sort(key=lambda clip: clip.segments[0].start)
-    filtered: List[ClipSpec] = []
-    last_end = -1.0
-    for clip in sanitized:
-        start = clip.segments[0].start
-        end = clip.segments[-1].end
-        if start < last_end:
-            continue
-        filtered.append(clip)
-        last_end = end
-    return filtered[:clip_count]
+    return sanitized[:clip_count]
 
 
 def reindex_clips(clips: List[ClipSpec]) -> List[ClipSpec]:

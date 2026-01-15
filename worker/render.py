@@ -238,17 +238,23 @@ def _build_ass_subtitles(
 ) -> Optional[Path]:
     # Build ASS subtitles aligned to the concatenated clip timeline.
     events: List[str] = []
+    last_end = 0.0
     offset = 0.0
     for segment in clip.segments:
         segment_duration = max(0.0, segment.end - segment.start)
         segment_entries = _collect_entries(transcript, segment.start, segment.end)
+        segment_entries.sort(key=lambda entry: entry.start)
         if segment_entries:
             for entry in segment_entries:
                 entry_start = max(segment.start, entry.start)
                 entry_end = min(segment.end, entry.start + entry.duration)
                 rel_start = offset + max(0.0, entry_start - segment.start)
                 rel_end = offset + max(0.0, entry_end - segment.start)
-                text = _build_karaoke_text(entry.text, entry_end - entry_start)
+                if rel_start < last_end:
+                    rel_start = last_end
+                if rel_end <= rel_start:
+                    continue
+                text = _build_karaoke_text(entry.text, rel_end - rel_start)
                 if not text:
                     continue
                 events.append(
@@ -259,17 +265,24 @@ def _build_ass_subtitles(
                         + text,
                     )
                 )
+                last_end = rel_end
         elif segment.text:
-            text = _build_karaoke_text(segment.text, segment_duration)
+            rel_start = max(offset, last_end)
+            rel_end = offset + segment_duration
+            if rel_end <= rel_start:
+                offset += segment_duration
+                continue
+            text = _build_karaoke_text(segment.text, rel_end - rel_start)
             if text:
                 events.append(
                     "Dialogue: 0,{start},{end},Default,,0,0,0,,{text}".format(
-                        start=_format_ass_time(offset),
-                        end=_format_ass_time(offset + segment_duration),
+                        start=_format_ass_time(rel_start),
+                        end=_format_ass_time(rel_end),
                         text="{\\fad(60,60)\\t(0,180,\\fscx105\\fscy105)\\t(180,260,\\fscx100\\fscy100)}"
                         + text,
                     )
                 )
+                last_end = rel_end
         offset += segment_duration
     if not events:
         return None
