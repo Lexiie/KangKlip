@@ -17,23 +17,26 @@ except ImportError as exc:
 
 def _probe_video_info(video_path: Path) -> Tuple[int, int, int, int, int]:
     # Get source video dimensions and rotation metadata.
+    cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height:stream_tags=rotate:side_data_list",
+        "-of",
+        "json",
+        str(video_path),
+    ]
     result = subprocess.run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "stream=width,height:stream_tags=rotate:stream_side_data",
-            "-of",
-            "json",
-            str(video_path),
-        ],
+        cmd,
         check=True,
         capture_output=True,
         text=True,
     )
+    if result.stderr:
+        print(f"ffprobe warning: {result.stderr.strip()}")
     payload = json.loads(result.stdout)
     streams = payload.get("streams", [])
     if not streams:
@@ -345,6 +348,7 @@ def _render_montage(
     preset: str,
     has_audio: bool,
     subtitle_path: Optional[Path],
+    use_manual_rotation: bool,
 ) -> None:
     # Render a multi-segment clip with ffmpeg concat filter.
     filters: List[str] = []
@@ -387,7 +391,10 @@ def _render_montage(
     args = [
         "ffmpeg",
         "-y",
-        "-noautorotate",
+    ]
+    if use_manual_rotation:
+        args.append("-noautorotate")
+    args += [
         "-i",
         str(video_path),
         "-filter_complex",
@@ -398,9 +405,9 @@ def _render_montage(
         video_codec,
         "-preset",
         preset,
-        "-metadata:s:v:0",
-        "rotate=0",
     ]
+    if use_manual_rotation:
+        args += ["-metadata:s:v:0", "rotate=0"]
     if has_audio:
         args += ["-map", "[a]", "-c:a", "aac"]
     else:
@@ -417,12 +424,26 @@ def render_clips(
 ) -> List[Path]:
     # Render each clip using ffmpeg.
     outputs: List[Path] = []
-    width, height, display_width, display_height, rotation = _probe_video_info(video_path)
+    legacy_crop_filter = (
+        "crop="
+        "if(gte(iw/ih\\,9/16)\\,ih*9/16\\,iw):"
+        "if(gte(iw/ih\\,9/16)\\,ih\\,iw*16/9),"
+        "scale=1080:1920"
+    )
+    use_manual_rotation = True
+    rotation = 0
+    display_width = 0
+    display_height = 0
+    face_centers: Dict[int, List[Optional[Tuple[float, float]]]] = {}
+    try:
+        _width, _height, display_width, display_height, rotation = _probe_video_info(video_path)
+        face_centers = _find_face_centers(video_path, clips, rotation)
+    except Exception:
+        use_manual_rotation = False
     use_nvenc = _has_nvenc()
     video_codec = "h264_nvenc" if use_nvenc else "libx264"
     preset = "fast" if use_nvenc else "veryfast"
     has_audio = _has_audio(video_path)
-    face_centers = _find_face_centers(video_path, clips, rotation)
     for clip in clips:
         output_path = output_dir / f"clip_{clip.index:02d}.mp4"
         subtitle_path = None
@@ -433,13 +454,16 @@ def render_clips(
                 output_dir / f"clip_{clip.index:02d}.ass",
             )
         subtitles = _subtitle_filter(subtitle_path) if subtitle_path else None
-        crop_filters = _build_clip_crop_filters(
-            display_width,
-            display_height,
-            clip,
-            face_centers.get(clip.index),
-            rotation,
-        )
+        if use_manual_rotation:
+            crop_filters = _build_clip_crop_filters(
+                display_width,
+                display_height,
+                clip,
+                face_centers.get(clip.index),
+                rotation,
+            )
+        else:
+            crop_filters = [legacy_crop_filter for _ in clip.segments]
         try:
             if len(clip.segments) == 1:
                 segment = clip.segments[0]
@@ -449,7 +473,10 @@ def render_clips(
                 args = [
                     "ffmpeg",
                     "-y",
-                    "-noautorotate",
+                ]
+                if use_manual_rotation:
+                    args.append("-noautorotate")
+                args += [
                     "-ss",
                     str(segment.start),
                     "-to",
@@ -462,9 +489,9 @@ def render_clips(
                     video_codec,
                     "-preset",
                     preset,
-                    "-metadata:s:v:0",
-                    "rotate=0",
                 ]
+                if use_manual_rotation:
+                    args += ["-metadata:s:v:0", "rotate=0"]
                 if has_audio:
                     args += ["-c:a", "aac"]
                 else:
@@ -481,6 +508,7 @@ def render_clips(
                     preset,
                     has_audio,
                     subtitle_path,
+                    use_manual_rotation,
                 )
         except RuntimeError:
             if len(clip.segments) == 1:
@@ -491,7 +519,10 @@ def render_clips(
                 args = [
                     "ffmpeg",
                     "-y",
-                    "-noautorotate",
+                ]
+                if use_manual_rotation:
+                    args.append("-noautorotate")
+                args += [
                     "-ss",
                     str(segment.start),
                     "-to",
@@ -504,9 +535,9 @@ def render_clips(
                     "libx264",
                     "-preset",
                     "veryfast",
-                    "-metadata:s:v:0",
-                    "rotate=0",
                 ]
+                if use_manual_rotation:
+                    args += ["-metadata:s:v:0", "rotate=0"]
                 if has_audio:
                     args += ["-c:a", "aac"]
                 else:
@@ -523,6 +554,7 @@ def render_clips(
                     "veryfast",
                     has_audio,
                     subtitle_path,
+                    use_manual_rotation,
                 )
         outputs.append(output_path)
     return outputs
