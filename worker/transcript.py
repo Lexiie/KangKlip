@@ -109,28 +109,56 @@ def fetch_captions(video_url: str, output_dir: Path, language: str) -> Optional[
     return entries
 
 
-def transcribe_audio(audio_path: Path, language: str) -> List[TranscriptEntry]:
+def transcribe_audio(audio_path: Path, language: str, asr_model: str) -> List[TranscriptEntry]:
     # Run faster-whisper ASR to generate transcript entries.
     try:
         from faster_whisper import WhisperModel
     except Exception as exc:
         raise RuntimeError("faster-whisper is not available") from exc
-    model = WhisperModel("base", device="cuda", compute_type="int8")
-    segments, _ = model.transcribe(
+    model = WhisperModel(asr_model, device="cuda", compute_type="int8")
+    segments, info = model.transcribe(
         str(audio_path),
         language=None if language == "auto" else language,
         vad_filter=True,
     )
+    if language == "auto" and info is not None:
+        detected = getattr(info, "language", None)
+        prob = getattr(info, "language_probability", None)
+        if detected:
+            if prob is not None:
+                print(f"asr detected language={detected} prob={prob:.2f}")
+            else:
+                print(f"asr detected language={detected}")
     entries: List[TranscriptEntry] = []
     for segment in segments:
         entries.append(
             TranscriptEntry(text=segment.text.strip(), start=segment.start, duration=segment.end - segment.start)
         )
+    _apply_auto_punctuation(entries)
     return entries
 
 
+def _apply_auto_punctuation(entries: List[TranscriptEntry]) -> None:
+    # Apply lightweight punctuation to ASR output.
+    for idx, entry in enumerate(entries):
+        text = entry.text.strip()
+        if not text:
+            continue
+        if text[0].isalpha():
+            text = text[0].upper() + text[1:]
+        punct = text[-1]
+        if punct not in ".?!":
+            gap = None
+            if idx + 1 < len(entries):
+                next_start = entries[idx + 1].start
+                gap = max(0.0, next_start - (entry.start + entry.duration))
+            if gap is not None and gap > 0.8:
+                text = f"{text}."
+        entry.text = text
+
+
 def chunk_transcript(entries: List[TranscriptEntry]) -> List[Dict[str, float]]:
-    # Merge transcript entries into 10-20 second chunks.
+    # Merge transcript entries into ~5 minute chunks.
     chunks: List[Dict[str, float]] = []
     buffer_text: List[str] = []
     buffer_start = None
@@ -142,18 +170,7 @@ def chunk_transcript(entries: List[TranscriptEntry]) -> List[Dict[str, float]]:
         else:
             buffer_end = entry.start + entry.duration
         buffer_text.append(entry.text)
-        if buffer_end - buffer_start >= 10.0:
-            chunks.append(
-                {
-                    "text": " ".join(buffer_text).strip(),
-                    "start": buffer_start,
-                    "end": buffer_end,
-                }
-            )
-            buffer_text = []
-            buffer_start = None
-            buffer_end = None
-        if buffer_start is not None and buffer_end is not None and buffer_end - buffer_start >= 20.0:
+        if buffer_start is not None and buffer_end is not None and buffer_end - buffer_start >= 300.0:
             chunks.append(
                 {
                     "text": " ".join(buffer_text).strip(),

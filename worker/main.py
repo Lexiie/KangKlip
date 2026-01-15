@@ -78,7 +78,7 @@ def main() -> None:
             log("extract audio")
             extract_audio(video_path, audio_path)
             log("transcribe audio")
-            transcript = transcribe_audio(audio_path, config.language)
+            transcript = transcribe_audio(audio_path, config.language, config.asr_model)
         report("TRANSCRIPT", 40)
         log("chunk transcript")
         transcript_payload = [entry.__dict__ for entry in transcript]

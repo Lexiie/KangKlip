@@ -22,6 +22,7 @@ class WorkerConfig:
     llm_api_key: Optional[str]
     llm_timeout_seconds: int
     llm_model_name: str
+    asr_model: str
 
 
 def read_env(name: str, default: Optional[str] = None) -> str:
@@ -56,4 +57,5 @@ def load_config() -> WorkerConfig:
         llm_api_key=llm_api_key,
         llm_timeout_seconds=int(read_env("LLM_TIMEOUT_SECONDS", "20")),
         llm_model_name=llm_model_name,
+        asr_model=read_env("ASR_MODEL", "medium"),
     )
