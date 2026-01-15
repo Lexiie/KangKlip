@@ -29,7 +29,7 @@ def download_video(video_url: str, output_path: Path, meta_path: Path) -> None:
     run_cmd([
         "yt-dlp",
         "-f",
-        "best[height<=720][ext=mp4]/b[ext=mp4]",
+        "best[height<=1080][ext=mp4]/b[ext=mp4]",
         "--js-runtimes",
         "bun",
         "-o",
