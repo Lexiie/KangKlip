@@ -45,7 +45,7 @@ const buildWorkerEnv = (
     OUTPUT_LANGUAGE: body.language,
     TRANSCRIPT_MODE: "prefer_existing",
     ASR_FALLBACK: "true",
-    ASR_MODEL: "medium",
+    ASR_MODEL: "small",
     R2_ENDPOINT: config.r2Endpoint,
     R2_BUCKET: config.r2Bucket,
     R2_ACCESS_KEY_ID: config.r2AccessKeyId,

@@ -6,4 +6,4 @@ ctranslate2==4.5.0
 huggingface-hub==0.26.2
 requests==2.32.3
 youtube-transcript-api==1.2.3
-mediapipe==0.10.14
+https://github.com/cudawarped/opencv-python-cuda-wheels/releases/download/4.10.0.84/opencv_python_cuda-4.10.0.84-cp310-cp310-linux_x86_64.whl

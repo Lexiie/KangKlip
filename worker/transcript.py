@@ -120,6 +120,8 @@ def transcribe_audio(audio_path: Path, language: str, asr_model: str) -> List[Tr
         str(audio_path),
         language=None if language == "auto" else language,
         vad_filter=True,
+        temperature=0,
+        condition_on_previous_text=False,
     )
     if language == "auto" and info is not None:
         detected = getattr(info, "language", None)
@@ -129,6 +131,14 @@ def transcribe_audio(audio_path: Path, language: str, asr_model: str) -> List[Tr
                 print(f"asr detected language={detected} prob={prob:.2f}")
             else:
                 print(f"asr detected language={detected}")
+            if detected in {"id", "en"}:
+                segments, _ = model.transcribe(
+                    str(audio_path),
+                    language=detected,
+                    vad_filter=True,
+                    temperature=0,
+                    condition_on_previous_text=False,
+                )
     entries: List[TranscriptEntry] = []
     for segment in segments:
         entries.append(

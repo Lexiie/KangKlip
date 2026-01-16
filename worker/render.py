@@ -578,18 +578,27 @@ def _find_face_centers(
     clips: List[ClipSpec],
     rotation: int,
 ) -> Dict[int, List[Optional[Tuple[float, float]]]]:
-    # Detect face centers for each segment in each clip using MediaPipe.
+    # Detect face centers for each segment using OpenCV DNN (CUDA when available).
     try:
         import cv2
-        import mediapipe as mp
     except Exception:
-        print("face detect: mediapipe unavailable, fallback to center crop")
+        print("face detect: opencv unavailable, fallback to center crop")
         return {clip.index: [None for _ in clip.segments] for clip in clips}
 
-    detector = mp.solutions.face_detection.FaceDetection(
-        model_selection=0,
-        min_detection_confidence=0.5,
-    )
+    model_dir = Path("/app/models/face")
+    prototxt = model_dir / "opencv_face_detector.pbtxt"
+    weights = model_dir / "opencv_face_detector_uint8.pb"
+    if not prototxt.exists() or not weights.exists():
+        print("face detect: model files missing, fallback to center crop")
+        return {clip.index: [None for _ in clip.segments] for clip in clips}
+
+    net = cv2.dnn.readNetFromTensorflow(str(weights), str(prototxt))
+    try:
+        if hasattr(cv2, "cuda") and cv2.cuda.getCudaEnabledDeviceCount() > 0:
+            net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+            net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA_FP16)
+    except Exception:
+        pass
 
     capture = cv2.VideoCapture(str(video_path))
     if not capture.isOpened():
@@ -607,23 +616,37 @@ def _find_face_centers(
 
     def detect_center(frame) -> Optional[Tuple[float, float]]:
         frame = rotate_frame(frame)
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        result = detector.process(rgb)
-        if not result.detections:
-            return None
         height, width = frame.shape[:2]
+        blob = cv2.dnn.blobFromImage(
+            frame,
+            scalefactor=1.0,
+            size=(300, 300),
+            mean=(104.0, 177.0, 123.0),
+            swapRB=True,
+        )
+        net.setInput(blob)
+        detections = net.forward()
         best = None
         best_area = 0.0
-        for detection in result.detections:
-            bbox = detection.location_data.relative_bounding_box
-            box_w = bbox.width * width
-            box_h = bbox.height * height
-            area = box_w * box_h
+        for i in range(detections.shape[2]):
+            confidence = float(detections[0, 0, i, 2])
+            if confidence < 0.5:
+                continue
+            box = detections[0, 0, i, 3:7]
+            x1 = int(box[0] * width)
+            y1 = int(box[1] * height)
+            x2 = int(box[2] * width)
+            y2 = int(box[3] * height)
+            x1 = max(0, min(width - 1, x1))
+            y1 = max(0, min(height - 1, y1))
+            x2 = max(0, min(width - 1, x2))
+            y2 = max(0, min(height - 1, y2))
+            if x2 <= x1 or y2 <= y1:
+                continue
+            area = (x2 - x1) * (y2 - y1)
             if area > best_area:
                 best_area = area
-                center_x = (bbox.xmin * width) + box_w / 2
-                center_y = (bbox.ymin * height) + box_h / 2
-                best = (center_x, center_y)
+                best = ((x1 + x2) / 2, (y1 + y2) / 2)
         return best
 
     centers: Dict[int, List[Optional[Tuple[float, float]]]] = {}
