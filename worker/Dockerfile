@@ -26,9 +26,9 @@ RUN python3 -m pip install --upgrade pip \
   && ln -s /root/.bun/bin/bun /usr/local/bin/bun
 
 RUN mkdir -p /app/models/face \
-  && curl -fsSL https://raw.githubusercontent.com/opencv/opencv/master/samples/dnn/face_detector/opencv_face_detector.pbtxt \
+  && curl -fsSL https://raw.githubusercontent.com/opencv/opencv/4.x/samples/dnn/face_detector/opencv_face_detector.pbtxt \
     -o /app/models/face/opencv_face_detector.pbtxt \
-  && curl -fsSL https://raw.githubusercontent.com/opencv/opencv_3rdparty/master/dnn_samples_face_detector/opencv_face_detector_uint8.pb \
+  && curl -fsSL https://raw.githubusercontent.com/opencv/opencv_3rdparty/dnn_samples_face_detector_20180220_uint8/opencv_face_detector_uint8.pb \
     -o /app/models/face/opencv_face_detector_uint8.pb
 
 ENV HF_HOME=/models/hf
