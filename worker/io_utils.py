@@ -51,7 +51,7 @@ def download_video(video_url: str, output_path: Path, meta_path: Path) -> None:
     run_cmd([
         "yt-dlp",
         "-f",
-        "bestvideo[height<=1080]+bestaudio/best[height<=1080][ext=mp4]/b[ext=mp4]",
+        "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080][vcodec^=avc1]+bestaudio/best[height<=1080][ext=mp4][acodec!=none]/b[ext=mp4][acodec!=none]",
         "--merge-output-format",
         "mp4",
         "--js-runtimes",

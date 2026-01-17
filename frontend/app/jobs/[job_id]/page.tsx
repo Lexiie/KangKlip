@@ -31,6 +31,7 @@ export default function JobPage() {
   const [status, setStatus] = useState<JobStatusResponse | null>(null);
   const [results, setResults] = useState<JobResultsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [videoFallback, setVideoFallback] = useState<Record<string, boolean>>({});
   const jobIdRef = useRef<string | null>(null);
 
   jobIdRef.current = jobId ?? null;
@@ -211,10 +212,20 @@ export default function JobPage() {
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
                   <video
                     className="w-full max-h-[70vh] object-contain"
-                    src={`${apiBase}${clip.stream_url}`}
+                    src={
+                      videoFallback[clip.file]
+                        ? `${apiBase}${clip.stream_url}`
+                        : clip.download_url
+                    }
                     controls
                     playsInline
                     preload="metadata"
+                    onError={() =>
+                      setVideoFallback((prev) => ({
+                        ...prev,
+                        [clip.file]: true,
+                      }))
+                    }
                   />
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
