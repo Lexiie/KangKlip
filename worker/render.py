@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import os
 import subprocess
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -15,7 +16,31 @@ except ImportError as exc:
     from transcript import TranscriptEntry
 
 
-def _probe_video_info(video_path: Path) -> Tuple[int, int, int, int, int]:
+def _parse_frame_rate(value: object) -> Optional[float]:
+    if isinstance(value, (int, float)):
+        return float(value)
+    if not isinstance(value, str):
+        return None
+    if "/" not in value:
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    num, denom = value.split("/", maxsplit=1)
+    try:
+        num_f = float(num)
+        denom_f = float(denom)
+    except ValueError:
+        return None
+    if denom_f == 0:
+        return None
+    fps = num_f / denom_f
+    if fps <= 0:
+        return None
+    return fps
+
+
+def _probe_video_info(video_path: Path) -> Tuple[int, int, int, int, int, Optional[float]]:
     # Get source video dimensions and rotation metadata.
     cmd = [
         "ffprobe",
@@ -24,7 +49,7 @@ def _probe_video_info(video_path: Path) -> Tuple[int, int, int, int, int]:
         "-select_streams",
         "v:0",
         "-show_entries",
-        "stream=width,height:stream_tags=rotate:side_data_list",
+        "stream=width,height,avg_frame_rate,r_frame_rate:stream_tags=rotate:side_data_list",
         "-of",
         "json",
         str(video_path),
@@ -47,10 +72,37 @@ def _probe_video_info(video_path: Path) -> Tuple[int, int, int, int, int]:
     if width <= 0 or height <= 0:
         raise RuntimeError("Invalid video dimensions")
     rotation = _extract_rotation(stream)
+    fps = _parse_frame_rate(stream.get("avg_frame_rate"))
+    if fps is None:
+        fps = _parse_frame_rate(stream.get("r_frame_rate"))
     display_width, display_height = width, height
     if rotation in (90, 270):
         display_width, display_height = height, width
-    return width, height, display_width, display_height, rotation
+    return width, height, display_width, display_height, rotation, fps
+
+
+def _probe_video_info_cv2(video_path: Path) -> Tuple[int, int, Optional[float]]:
+    # Fallback to OpenCV for width/height when ffprobe fails.
+    try:
+        import cv2
+    except Exception as exc:
+        raise RuntimeError("opencv unavailable for probe") from exc
+    capture = cv2.VideoCapture(str(video_path))
+    if not capture.isOpened():
+        raise RuntimeError("opencv failed to open video")
+    width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+    height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+    fps = float(capture.get(cv2.CAP_PROP_FPS) or 0)
+    if width <= 0 or height <= 0:
+        ok, frame = capture.read()
+        if ok and frame is not None:
+            height, width = frame.shape[:2]
+    capture.release()
+    if width <= 0 or height <= 0:
+        raise RuntimeError("opencv failed to determine dimensions")
+    if fps <= 0:
+        fps = None
+    return width, height, fps
 
 
 def _extract_rotation(stream: Dict[str, object]) -> int:
@@ -100,9 +152,12 @@ def _build_crop_filter(
     height: int,
     face_center: Optional[Tuple[float, float]],
     rotation: int,
+    target_width: int,
+    target_height: int,
+    max_fps: Optional[int],
 ) -> str:
     # Build a 9:16 crop that keeps the face in frame when available.
-    target_ratio = 9 / 16
+    target_ratio = target_width / target_height
     source_ratio = width / height
     if source_ratio >= target_ratio:
         crop_h = height
@@ -118,11 +173,17 @@ def _build_crop_filter(
         max_y = max(0, height - crop_h)
         crop_x = 0
         crop_y = int(round(_clamp(center_y - crop_h / 2, 0, max_y)))
+    filters: List[str] = []
+    if max_fps:
+        filters.append(f"fps={max_fps}")
     rotate = _rotation_filter(rotation)
-    crop = f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y},scale=1080:1920:flags=lanczos"
     if rotate:
-        return f"{rotate},{crop}"
-    return crop
+        filters.append(rotate)
+    filters.append(
+        f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y},"
+        f"scale={target_width}:{target_height}:flags=lanczos"
+    )
+    return ",".join(filters)
 
 
 def _format_ass_time(seconds: float) -> str:
@@ -446,6 +507,7 @@ def _render_montage(
     clip: ClipSpec,
     video_codec: str,
     preset: str,
+    crf: Optional[int],
     has_audio: bool,
     subtitle_path: Optional[Path],
     use_manual_rotation: bool,
@@ -506,6 +568,11 @@ def _render_montage(
         "-preset",
         preset,
     ]
+    if crf is not None:
+        if video_codec == "libx264":
+            args += ["-crf", str(crf)]
+        elif video_codec == "h264_nvenc":
+            args += ["-cq:v", str(crf)]
     if use_manual_rotation:
         args += ["-metadata:s:v:0", "rotate=0"]
     if has_audio:
@@ -524,11 +591,16 @@ def render_clips(
 ) -> List[Path]:
     # Render each clip using ffmpeg.
     outputs: List[Path] = []
+    target_width, target_height = _parse_resolution_env()
+    target_ratio = target_width / target_height
+    max_fps = _parse_int_env("RENDER_MAX_FPS", 1, 120)
+    crf = _parse_int_env("RENDER_CRF", 10, 35)
+    preset_override = os.getenv("RENDER_PRESET")
     legacy_crop_filter = (
         "crop="
-        "if(gte(iw/ih\\,9/16)\\,ih*9/16\\,iw):"
-        "if(gte(iw/ih\\,9/16)\\,ih\\,iw*16/9),"
-        "scale=1080:1920:flags=lanczos"
+        f"if(gte(iw/ih\\,{target_ratio})\\,ih*{target_ratio}\\,iw):"
+        f"if(gte(iw/ih\\,{target_ratio})\\,ih\\,iw/{target_ratio}),"
+        f"scale={target_width}:{target_height}:flags=lanczos"
     )
     use_manual_rotation = True
     rotation = 0
@@ -536,11 +608,31 @@ def render_clips(
     display_height = 0
     face_centers: Dict[int, List[Optional[Tuple[float, float]]]] = {}
     face_meta: Dict[str, object] = {"backend": "unavailable", "reason": "ffprobe_failed"}
+    probe_error = None
+    source_fps = None
     try:
-        _width, _height, display_width, display_height, rotation = _probe_video_info(video_path)
-    except Exception:
-        use_manual_rotation = False
-    else:
+        _width, _height, display_width, display_height, rotation, source_fps = _probe_video_info(video_path)
+    except Exception as exc:
+        probe_error = exc
+        try:
+            _width, _height, source_fps = _probe_video_info_cv2(video_path)
+            display_width, display_height = _width, _height
+            rotation = 0
+            use_manual_rotation = False
+        except Exception as fallback_exc:
+            use_manual_rotation = False
+            face_meta = {
+                "backend": "unavailable",
+                "reason": "ffprobe_failed",
+                "error": str(probe_error or fallback_exc),
+            }
+    if probe_error:
+        print(f"ffprobe failed: {probe_error}")
+    effective_max_fps = None
+    if max_fps and source_fps and source_fps > max_fps:
+        effective_max_fps = max_fps
+
+    if use_manual_rotation:
         try:
             face_centers, face_meta = _find_face_centers(video_path, clips, rotation)
         except Exception as exc:
@@ -553,6 +645,8 @@ def render_clips(
     use_nvenc = _has_nvenc()
     video_codec = "h264_nvenc" if use_nvenc else "libx264"
     preset = "fast" if use_nvenc else "veryfast"
+    if preset_override:
+        preset = preset_override
     has_audio = _has_audio(video_path)
     for clip in clips:
         output_path = output_dir / f"clip_{clip.index:02d}.mp4"
@@ -571,9 +665,16 @@ def render_clips(
                 clip,
                 face_centers.get(clip.index),
                 rotation,
+                target_width,
+                target_height,
+                effective_max_fps,
             )
         else:
-            crop_filters = [legacy_crop_filter for _ in clip.segments]
+            if effective_max_fps:
+                legacy_with_fps = f"fps={effective_max_fps}," + legacy_crop_filter
+            else:
+                legacy_with_fps = legacy_crop_filter
+            crop_filters = [legacy_with_fps for _ in clip.segments]
         try:
             if len(clip.segments) == 1:
                 segment = clip.segments[0]
@@ -600,6 +701,11 @@ def render_clips(
                     "-preset",
                     preset,
                 ]
+                if crf is not None:
+                    if video_codec == "libx264":
+                        args += ["-crf", str(crf)]
+                    elif video_codec == "h264_nvenc":
+                        args += ["-cq:v", str(crf)]
                 if use_manual_rotation:
                     args += ["-metadata:s:v:0", "rotate=0"]
                 if has_audio:
@@ -616,6 +722,7 @@ def render_clips(
                     clip,
                     video_codec,
                     preset,
+                    crf,
                     has_audio,
                     subtitle_path,
                     use_manual_rotation,
@@ -646,6 +753,8 @@ def render_clips(
                     "-preset",
                     "veryfast",
                 ]
+                if crf is not None:
+                    args += ["-crf", str(crf)]
                 if use_manual_rotation:
                     args += ["-metadata:s:v:0", "rotate=0"]
                 if has_audio:
@@ -662,6 +771,7 @@ def render_clips(
                     clip,
                     "libx264",
                     "veryfast",
+                    crf,
                     has_audio,
                     subtitle_path,
                     use_manual_rotation,
@@ -831,6 +941,9 @@ def _build_clip_crop_filters(
     clip: ClipSpec,
     centers: Optional[List[Optional[Tuple[float, float]]]],
     rotation: int,
+    target_width: int,
+    target_height: int,
+    max_fps: Optional[int],
 ) -> List[str]:
     # Build per-segment crop filters using detected face centers.
     filters: List[str] = []
@@ -838,5 +951,44 @@ def _build_clip_crop_filters(
         center = None
         if centers and idx < len(centers):
             center = centers[idx]
-        filters.append(_build_crop_filter(width, height, center, rotation))
+        filters.append(
+            _build_crop_filter(
+                width,
+                height,
+                center,
+                rotation,
+                target_width,
+                target_height,
+                max_fps,
+            )
+        )
     return filters
+
+
+def _parse_int_env(name: str, min_value: int, max_value: int) -> Optional[int]:
+    value = os.getenv(name)
+    if not value:
+        return None
+    try:
+        parsed = int(value)
+    except ValueError:
+        return None
+    if parsed < min_value or parsed > max_value:
+        return None
+    return parsed
+
+
+def _parse_resolution_env() -> Tuple[int, int]:
+    value = os.getenv("RENDER_RESOLUTION", "1080x1920")
+    if "x" in value:
+        parts = value.lower().split("x", maxsplit=1)
+        if len(parts) == 2:
+            try:
+                width = int(parts[0])
+                height = int(parts[1])
+            except ValueError:
+                width = 0
+                height = 0
+            if width > 0 and height > 0:
+                return width, height
+    return 1080, 1920

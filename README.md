@@ -3,12 +3,12 @@
 ![Backend](https://img.shields.io/badge/Backend-Express%20%2B%20TypeScript-2f74c0)
 ![Frontend](https://img.shields.io/badge/Frontend-Next.js-000000)
 ![Worker](https://img.shields.io/badge/Worker-Python-3776ab)
-![GPU](https://img.shields.io/badge/GPU-NVIDIA%20RTX%203080-76b900)
+![GPU](https://img.shields.io/badge/GPU-NVIDIA%20GPU-76b900)
 ![Nosana](https://img.shields.io/badge/Compute-Nosana-3a72ff)
 ![Storage](https://img.shields.io/badge/Storage-Cloudflare%20R2-f38020)
 ![Queue](https://img.shields.io/badge/State-Redis-dc382d)
 
-KangKlip is a deterministic, GPU-first short‑clip generator. Paste a long‑form video URL and get 1–5 vertical clips (30/45/60s) with titles and download links. The system is designed for speed and repeatability: the same input yields the same segments, the same render boundaries, and the same artifacts in storage.
+KangKlip is a GPU-first short‑clip generator. Paste a long‑form video URL and get 1–5 vertical clips (30/45/60s) with titles and download links. The system is designed for speed and reproducible artifacts: jobs are isolated, outputs are stored under a fixed R2 prefix, and manifests keep every stage auditable.
 
 ## Table of Contents
 
@@ -31,8 +31,8 @@ KangKlip is a deterministic, GPU-first short‑clip generator. Paste a long‑fo
 ## Why It Stands Out
 
 - **Script‑driven, not linear.** The pipeline selects highlight segments from a transcript rather than trimming the first N minutes.
-- **Deterministic job model.** Every job is stateless, runs on exactly one GPU, and writes to a fixed R2 prefix.
-- **Speed‑first architecture.** Fast transcript resolution (prefer existing captions, fallback ASR), vLLM selection, and FFmpeg render.
+- **Isolated job model.** Every job is stateless, runs on exactly one GPU, and writes to a fixed R2 prefix.
+- **Speed‑first architecture.** Faster‑whisper ASR, LLM selection via API with heuristic fallback, and FFmpeg render tuned for GPU nodes.
 - **Clean artifact trail.** Manifest + transcript + chunks + EDL are uploaded alongside clips for auditability.
 
 ## Services
@@ -55,9 +55,9 @@ User → Frontend → Backend (Express) → Nosana GPU Job → R2
 2. **Backend validates** input, generates `kk_<ULID>`, stores job state in Redis, and submits a Nosana run.
 3. **Worker pipeline** executes:
    - Download video → extract audio
-   - Transcript resolution (prefer captions; fallback ASR)
-   - Chunking (10–20s segments)
-   - LLM selection (Qwen2.5‑3B via vLLM)
+   - ASR transcript (faster‑whisper on GPU)
+   - Chunking (≈5 minute windows)
+   - LLM selection (external API; heuristic fallback)
    - FFmpeg render to 9:16
    - Upload artifacts + clips to R2
 4. **Worker callback** marks job `SUCCEEDED` or `FAILED`.
@@ -66,9 +66,9 @@ User → Frontend → Backend (Express) → Nosana GPU Job → R2
 ## API Surface
 
 - `POST /api/jobs` → create a job, returns `{ job_id, status }`
-- `GET /api/jobs/{job_id}` → status + stage + progress
+- `GET /api/jobs/{job_id}` → status + stage + progress + error
 - `GET /api/jobs/{job_id}/results` → clip titles + signed URLs
-- `POST /api/callback/nosana` → worker completion/failure (demo‑mode, no auth)
+- `POST /api/callback/nosana` → worker completion/failure (requires `x-callback-token`)
 
 ## Storage Layout (R2)
 
@@ -78,7 +78,9 @@ jobs/{job_id}/
   transcript.json
   chunks.json
   edl.json
-  source_meta.json
+  meta.json
+  video_stats.json
+  face_log.json
   clip_01.mp4
   clip_02.mp4
 ```
@@ -106,19 +108,24 @@ Required environment variables (no placeholders):
 - `NOSANA_API_KEY`
 - `NOSANA_WORKER_IMAGE`
 - `NOSANA_MARKET`
-- `NOSANA_GPU_MODEL`
 - `REDIS_URL`
 - `R2_ENDPOINT`
 - `R2_BUCKET`
 - `R2_ACCESS_KEY_ID`
 - `R2_SECRET_ACCESS_KEY`
 - `CALLBACK_BASE_URL`
+- `CALLBACK_TOKEN`
 - `LLM_API_BASE`
 - `LLM_MODEL_NAME`
+
+Optional:
+
+- `CORS_ORIGINS` (comma-separated list of allowed frontend origins)
 
 ## Worker
 
 Run in container with GPU and bundled deps. The entrypoint is `worker/main.py`.
+Face detection uses OpenCV DNN on CPU (no CUDA required).
 
 Build image:
 
@@ -142,11 +149,16 @@ Required environment variables:
 - `R2_SECRET_ACCESS_KEY`
 - `R2_PREFIX`
 - `CALLBACK_URL`
+- `CALLBACK_TOKEN`
 
-Optional overrides (defaults are optimized for RTX 3080):
+Optional overrides:
 
 - `LLM_API_KEY`
 - `LLM_TIMEOUT_SECONDS`
+- `RENDER_RESOLUTION` (default `1080x1920`)
+- `RENDER_MAX_FPS` (e.g. `30`, used for download selection and render fps)
+- `RENDER_CRF` (e.g. `18`)
+- `RENDER_PRESET` (e.g. `medium`)
 
 ## Demo Workflow (Local)
 
@@ -156,6 +168,10 @@ Optional overrides (defaults are optimized for RTX 3080):
 4. Submit a job and watch progress in `/jobs/{job_id}`.
 
 ## Production Notes
+
+- Callback auth uses `CALLBACK_TOKEN`; keep it secret and rotate if exposed.
+- The worker image is expected to include all model weights and dependencies (no runtime installs).
+- NVENC/NVDEC requires host NVIDIA driver capabilities; GPU nodes may be compute-only.
 
 ## Quick Start
 
@@ -181,13 +197,11 @@ NEXT_PUBLIC_API_BASE=http://localhost:8000 npm run dev
 ## Troubleshooting
 
 - **Job stuck in QUEUED**: check Nosana deployment status and whether `start_error` is set in `/api/jobs/{id}`.
-- **Job RUNNING but no results**: verify callback URL is correct and reachable from Nosana.
+- **Job RUNNING but no results**: verify callback URL/token is correct and reachable from Nosana.
 - **No dashboard logs**: ensure worker writes to stdout/stderr (see `worker/main.py` logging).
-- **YouTube transcript empty**: video may have no captions; ASR fallback will be used.
-
-- Callback auth is intentionally skipped for demo speed; add HMAC/signature checks in production.
-- The worker image is expected to include all model weights and dependencies (no runtime installs).
-- The GPU model is locked to RTX 3080 per PRD.
+- **ASR failed or slow**: verify GPU availability and that `faster-whisper` loads on the node.
+- **Face detection not working**: check `face_log.json` for `ffprobe_failed` or missing model files.
+- **Blurry clips**: try lowering `RENDER_MAX_FPS`, setting `RENDER_CRF` to 18–20, or reducing `RENDER_RESOLUTION`.
 
 ## Definition of Done
 
@@ -195,7 +209,7 @@ NEXT_PUBLIC_API_BASE=http://localhost:8000 npm run dev
 - Artifacts stored in R2
 - Backend reports correct state
 - Frontend can download outputs
-- No GPU OOM on RTX 3080
+- No GPU OOM on the target GPU
 
 ## Frontend
 

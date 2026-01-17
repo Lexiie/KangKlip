@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -8,6 +9,27 @@ def ensure_dirs(paths: List[Path]) -> None:
     # Ensure required directories exist on disk.
     for path in paths:
         path.mkdir(parents=True, exist_ok=True)
+
+
+def _format_selector() -> str:
+    # Build a yt-dlp format selector that prefers H.264 and preserves audio.
+    fps_clause = ""
+    max_fps = os.getenv("RENDER_MAX_FPS")
+    if max_fps:
+        try:
+            fps_value = int(max_fps)
+        except ValueError:
+            fps_value = None
+        if fps_value and fps_value > 0:
+            fps_clause = f"[fps<={fps_value}]"
+    return (
+        "bestvideo[height<=1080][vcodec^=avc1]"
+        f"{fps_clause}"
+        "+bestaudio[acodec^=mp4a]/"
+        "bestvideo[height<=1080][vcodec^=avc1]+bestaudio/"
+        "best[height<=1080][ext=mp4][acodec!=none]/"
+        "b[ext=mp4][acodec!=none]"
+    )
 
 
 def run_cmd(args: List[str], cwd: Optional[Path] = None) -> None:
@@ -51,7 +73,7 @@ def download_video(video_url: str, output_path: Path, meta_path: Path) -> None:
     run_cmd([
         "yt-dlp",
         "-f",
-        "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080][vcodec^=avc1]+bestaudio/best[height<=1080][ext=mp4][acodec!=none]/b[ext=mp4][acodec!=none]",
+        _format_selector(),
         "--merge-output-format",
         "mp4",
         "--js-runtimes",
