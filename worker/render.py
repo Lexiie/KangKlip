@@ -218,6 +218,69 @@ def _build_karaoke_text(
     return r"\N".join(chunks)
 
 
+def _wrap_words(
+    words: List[Dict[str, float | str]],
+    max_chars: int = 24,
+    max_lines: int = 2,
+) -> List[List[Dict[str, float | str]]]:
+    # Wrap word tokens into short lines.
+    lines: List[List[Dict[str, float | str]]] = []
+    current: List[Dict[str, float | str]] = []
+    length = 0
+    for word in words:
+        token = str(word.get("word", ""))
+        if not token:
+            continue
+        new_len = len(token) if not current else length + 1 + len(token)
+        if current and new_len > max_chars:
+            lines.append(current)
+            current = [word]
+            length = len(token)
+        else:
+            current.append(word)
+            length = new_len
+    if current:
+        lines.append(current)
+    if len(lines) <= max_lines:
+        return lines
+    kept = lines[: max_lines - 1]
+    remaining: List[Dict[str, float | str]] = []
+    for line in lines[max_lines - 1 :]:
+        remaining.extend(line)
+    if remaining:
+        kept.append(remaining)
+    return kept
+
+
+def _build_karaoke_words(
+    words: List[Dict[str, float | str]],
+    max_chars: int = 24,
+    max_lines: int = 2,
+) -> str:
+    # Build karaoke ASS text using per-word timestamps, including gaps.
+    lines = _wrap_words(words, max_chars=max_chars, max_lines=max_lines)
+    if not lines:
+        return ""
+    chunks: List[str] = []
+    for line in lines:
+        line_parts: List[str] = []
+        prev_end = None
+        for word in line:
+            text = str(word.get("word", "")).strip()
+            if not text:
+                continue
+            start = float(word.get("start", 0.0))
+            end = float(word.get("end", start))
+            if prev_end is not None and start > prev_end:
+                gap_cs = max(1, int(round((start - prev_end) * 100)))
+                line_parts.append(f"{{\\k{gap_cs}}}")
+            duration_cs = max(1, int(round((end - start) * 100)))
+            line_parts.append(f"{{\\k{duration_cs}}}{_ass_escape(text)}")
+            prev_end = end
+        chunks.append(" ".join(line_parts))
+    return r"\N".join(chunks)
+
+
 def _collect_entries(
     entries: Iterable[TranscriptEntry], start: float, end: float
 ) -> List[TranscriptEntry]:
@@ -254,7 +317,29 @@ def _build_ass_subtitles(
                     rel_start = last_end
                 if rel_end <= rel_start:
                     continue
-                text = _build_karaoke_text(entry.text, rel_end - rel_start)
+                words = [
+                    word
+                    for word in entry.words
+                    if word.get("end", entry.start) > entry_start
+                    and word.get("start", entry.start) < entry_end
+                ]
+                adjusted_words: List[Dict[str, float | str]] = []
+                for word in words:
+                    start = max(entry_start, float(word.get("start", entry_start)))
+                    end = min(entry_end, float(word.get("end", entry_end)))
+                    if end <= start:
+                        continue
+                    adjusted_words.append(
+                        {
+                            "word": word.get("word", ""),
+                            "start": start - entry_start,
+                            "end": end - entry_start,
+                        }
+                    )
+                if adjusted_words:
+                    text = _build_karaoke_words(adjusted_words)
+                else:
+                    text = _build_karaoke_text(entry.text, rel_end - rel_start)
                 if not text:
                     continue
                 events.append(
@@ -394,7 +479,6 @@ def _render_montage(
             )
         )
         filters.append(f"{concat_inputs}concat=n={len(clip.segments)}:v=1:a=1[v][a]")
-        filters.append("[a]loudnorm=I=-16:TP=-1.5:LRA=11[an]")
     else:
         concat_inputs = "".join(f"[v{idx}]" for idx in range(len(clip.segments)))
         filters.append(f"{concat_inputs}concat=n={len(clip.segments)}:v=1:a=0[v]")
@@ -423,7 +507,7 @@ def _render_montage(
     if use_manual_rotation:
         args += ["-metadata:s:v:0", "rotate=0"]
     if has_audio:
-        args += ["-map", "[an]", "-c:a", "aac"]
+        args += ["-map", "[a]", "-c:a", "aac"]
     else:
         args += ["-an"]
     args.append(str(output_path))
@@ -508,7 +592,7 @@ def render_clips(
                 if use_manual_rotation:
                     args += ["-metadata:s:v:0", "rotate=0"]
                 if has_audio:
-                    args += ["-c:a", "aac", "-af", "loudnorm=I=-16:TP=-1.5:LRA=11"]
+                    args += ["-c:a", "aac"]
                 else:
                     args += ["-an"]
                 args.append(str(output_path))
@@ -554,7 +638,7 @@ def render_clips(
                 if use_manual_rotation:
                     args += ["-metadata:s:v:0", "rotate=0"]
                 if has_audio:
-                    args += ["-c:a", "aac", "-af", "loudnorm=I=-16:TP=-1.5:LRA=11"]
+                    args += ["-c:a", "aac"]
                 else:
                     args += ["-an"]
                 args.append(str(output_path))
@@ -576,6 +660,9 @@ def render_clips(
         face_log = {
             "backend": face_meta.get("backend"),
             "reason": face_meta.get("reason"),
+            "error": face_meta.get("error"),
+            "opencv_version": face_meta.get("opencv_version"),
+            "cuda_devices": face_meta.get("cuda_devices"),
             "clips": [
                 {
                     "index": clip.index,
@@ -605,11 +692,11 @@ def _find_face_centers(
     # Detect face centers for each segment using OpenCV DNN (CUDA when available).
     try:
         import cv2
-    except Exception:
-        print("face detect: opencv unavailable, fallback to center crop")
+    except Exception as exc:
+        print(f"face detect: opencv unavailable ({exc}), fallback to center crop")
         return (
             {clip.index: [None for _ in clip.segments] for clip in clips},
-            {"backend": "unavailable", "reason": "opencv_missing"},
+            {"backend": "unavailable", "reason": "opencv_missing", "error": str(exc)},
         )
 
     model_dir = Path("/app/models/face")
@@ -714,7 +801,17 @@ def _find_face_centers(
         print(f"face detect: clip {clip.index} segments {len(clip.segments)} detected {detected}")
         centers[clip.index] = clip_centers
     capture.release()
-    return centers, {"backend": "opencv-dnn"}
+    cuda_count = 0
+    try:
+        if hasattr(cv2, "cuda"):
+            cuda_count = cv2.cuda.getCudaEnabledDeviceCount()
+    except Exception:
+        cuda_count = 0
+    return centers, {
+        "backend": "opencv-dnn",
+        "opencv_version": getattr(cv2, "__version__", "unknown"),
+        "cuda_devices": cuda_count,
+    }
 
 
 def _build_clip_crop_filters(

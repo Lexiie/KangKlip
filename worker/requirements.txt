@@ -5,5 +5,4 @@ faster-whisper==1.0.3
 ctranslate2==4.5.0
 huggingface-hub==0.26.2
 requests==2.32.3
-youtube-transcript-api==1.2.3
 https://github.com/cudawarped/opencv-python-cuda-wheels/releases/download/4.10.0.84/opencv_contrib_python-4.10.0.84-cp37-abi3-linux_x86_64.whl

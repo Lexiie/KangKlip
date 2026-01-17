@@ -10,7 +10,7 @@ try:
     from .llm import llm_select_segments, build_manifest, clip_to_edl, get_last_selection
     from .render import render_clips
     from .storage import upload_to_r2, callback_backend, upload_error
-    from .transcript import fetch_captions, transcribe_audio, chunk_transcript
+    from .transcript import transcribe_audio, chunk_transcript
 except ImportError as exc:
     if "attempted relative import" not in str(exc):
         raise
@@ -19,7 +19,7 @@ except ImportError as exc:
     from llm import llm_select_segments, build_manifest, clip_to_edl, get_last_selection
     from render import render_clips
     from storage import upload_to_r2, callback_backend, upload_error
-    from transcript import fetch_captions, transcribe_audio, chunk_transcript
+    from transcript import transcribe_audio, chunk_transcript
 
 
 def main() -> None:
@@ -62,9 +62,7 @@ def main() -> None:
     edl_path = artifacts_dir / "edl.json"
 
     try:
-        log("fetch captions")
         report("DOWNLOAD", 5)
-        transcript = fetch_captions(config.video_url, artifacts_dir, config.language)
         log("download video")
         download_video(config.video_url, video_path, meta_path)
         if not video_path.exists() or video_path.stat().st_size == 0:
@@ -74,11 +72,10 @@ def main() -> None:
         stats_path.write_bytes(
             orjson.dumps({"size_bytes": video_path.stat().st_size})
         )
-        if not transcript:
-            log("extract audio")
-            extract_audio(video_path, audio_path)
-            log("transcribe audio")
-            transcript = transcribe_audio(audio_path, config.language, config.asr_model)
+        log("extract audio")
+        extract_audio(video_path, audio_path)
+        log("transcribe audio")
+        transcript = transcribe_audio(audio_path, config.language, config.asr_model)
         report("TRANSCRIPT", 40)
         log("chunk transcript")
         transcript_payload = [entry.__dict__ for entry in transcript]

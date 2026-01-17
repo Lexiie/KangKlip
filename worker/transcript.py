@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
-
-from youtube_transcript_api import YouTubeTranscriptApi
+from typing import Dict, List
 
 @dataclass
 class TranscriptEntry:
@@ -10,6 +8,7 @@ class TranscriptEntry:
     text: str
     start: float
     duration: float
+    words: List[Dict[str, float | str]]
 
 
 def parse_vtt(path: Path) -> List[TranscriptEntry]:
@@ -33,7 +32,12 @@ def parse_vtt(path: Path) -> List[TranscriptEntry]:
             text = " ".join(text_lines).strip()
             if text:
                 entries.append(
-                    TranscriptEntry(text=text, start=start, duration=max(0.0, end - start))
+                    TranscriptEntry(
+                        text=text,
+                        start=start,
+                        duration=max(0.0, end - start),
+                        words=[],
+                    )
                 )
         idx += 1
     return entries
@@ -46,67 +50,6 @@ def _parse_timestamp(value: str) -> float:
     for part in parts:
         seconds = seconds * 60 + float(part)
     return seconds
-
-
-def _extract_video_id(video_url: str) -> Optional[str]:
-    # Extract YouTube video id from a URL.
-    if "v=" in video_url:
-        return video_url.split("v=")[-1].split("&")[0]
-    if "youtu.be/" in video_url:
-        return video_url.split("youtu.be/")[-1].split("?")[0]
-    return None
-
-
-def _fetch_youtube_transcript(video_id: str, language: str):
-    # Prefer the 1.2.x instance API but fall back to the legacy class method.
-    if hasattr(YouTubeTranscriptApi, "fetch"):
-        api = YouTubeTranscriptApi()
-        if language != "auto":
-            return api.fetch(video_id, languages=[language])
-        return api.fetch(video_id)
-    if language != "auto":
-        return YouTubeTranscriptApi.get_transcript(video_id, languages=[language])
-    return YouTubeTranscriptApi.get_transcript(video_id)
-
-
-def _iter_transcript_items(transcript) -> Iterable:
-    if transcript is None:
-        return []
-    if hasattr(transcript, "to_raw_data"):
-        return transcript.to_raw_data()
-    if isinstance(transcript, list):
-        return transcript
-    if isinstance(transcript, str):
-        return []
-    try:
-        return list(transcript)
-    except TypeError:
-        return []
-
-
-def fetch_captions(video_url: str, output_dir: Path, language: str) -> Optional[List[TranscriptEntry]]:
-    # Attempt to fetch existing captions using youtube-transcript-api.
-    video_id = _extract_video_id(video_url)
-    if not video_id:
-        return None
-    try:
-        transcript = _fetch_youtube_transcript(video_id, language)
-    except Exception:
-        return None
-
-    entries: List[TranscriptEntry] = []
-    for item in _iter_transcript_items(transcript):
-        if isinstance(item, dict):
-            text = str(item.get("text", "")).strip()
-            start = float(item.get("start", 0.0))
-            duration = float(item.get("duration", 0.0))
-        else:
-            text = str(getattr(item, "text", "")).strip()
-            start = float(getattr(item, "start", 0.0))
-            duration = float(getattr(item, "duration", 0.0))
-        if text:
-            entries.append(TranscriptEntry(text=text, start=start, duration=duration))
-    return entries
 
 
 def transcribe_audio(audio_path: Path, language: str, asr_model: str) -> List[TranscriptEntry]:
@@ -122,6 +65,7 @@ def transcribe_audio(audio_path: Path, language: str, asr_model: str) -> List[Tr
         vad_filter=True,
         temperature=0,
         condition_on_previous_text=False,
+        word_timestamps=True,
     )
     if language == "auto" and info is not None:
         detected = getattr(info, "language", None)
@@ -138,11 +82,29 @@ def transcribe_audio(audio_path: Path, language: str, asr_model: str) -> List[Tr
                     vad_filter=True,
                     temperature=0,
                     condition_on_previous_text=False,
+                    word_timestamps=True,
                 )
     entries: List[TranscriptEntry] = []
     for segment in segments:
+        words: List[Dict[str, float | str]] = []
+        for word in getattr(segment, "words", []) or []:
+            word_text = str(getattr(word, "word", "")).strip()
+            if not word_text:
+                continue
+            words.append(
+                {
+                    "word": word_text,
+                    "start": float(getattr(word, "start", segment.start)),
+                    "end": float(getattr(word, "end", segment.end)),
+                }
+            )
         entries.append(
-            TranscriptEntry(text=segment.text.strip(), start=segment.start, duration=segment.end - segment.start)
+            TranscriptEntry(
+                text=segment.text.strip(),
+                start=segment.start,
+                duration=segment.end - segment.start,
+                words=words,
+            )
         )
     _apply_auto_punctuation(entries)
     return entries
@@ -156,6 +118,10 @@ def _apply_auto_punctuation(entries: List[TranscriptEntry]) -> None:
             continue
         if text[0].isalpha():
             text = text[0].upper() + text[1:]
+            if entry.words:
+                first = entry.words[0].get("word")
+                if isinstance(first, str) and first:
+                    entry.words[0]["word"] = first[0].upper() + first[1:]
         punct = text[-1]
         if punct not in ".?!":
             gap = None
@@ -164,6 +130,10 @@ def _apply_auto_punctuation(entries: List[TranscriptEntry]) -> None:
                 gap = max(0.0, next_start - (entry.start + entry.duration))
             if gap is not None and gap > 0.8:
                 text = f"{text}."
+                if entry.words:
+                    last = entry.words[-1].get("word")
+                    if isinstance(last, str) and last:
+                        entry.words[-1]["word"] = last + "."
         entry.text = text
 
 
