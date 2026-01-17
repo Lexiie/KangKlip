@@ -78,7 +78,22 @@ def main() -> None:
         transcript = transcribe_audio(audio_path, config.language, config.asr_model)
         report("TRANSCRIPT", 40)
         log("chunk transcript")
-        transcript_payload = [entry.__dict__ for entry in transcript]
+        transcript_payload = [
+            {
+                "text": entry.text,
+                "start": float(entry.start),
+                "duration": float(entry.duration),
+                "words": [
+                    {
+                        "word": str(word.get("word", "")),
+                        "start": float(word.get("start", 0.0)),
+                        "end": float(word.get("end", 0.0)),
+                    }
+                    for word in entry.words
+                ],
+            }
+            for entry in transcript
+        ]
         transcript_path.write_bytes(orjson.dumps(transcript_payload))
         chunks = chunk_transcript(transcript)
         chunks_path.write_bytes(orjson.dumps(chunks))
