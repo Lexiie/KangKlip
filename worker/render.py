@@ -49,7 +49,7 @@ def _probe_video_info(video_path: Path) -> Tuple[int, int, int, int, int, Option
         "-select_streams",
         "v:0",
         "-show_entries",
-        "stream=width,height,avg_frame_rate,r_frame_rate:stream_tags=rotate:side_data_list",
+        "stream=width,height,avg_frame_rate,r_frame_rate,side_data_list:stream_tags=rotate",
         "-of",
         "json",
         str(video_path),
@@ -679,6 +679,11 @@ def render_clips(
             display_width, display_height = _width, _height
             rotation = 0
             use_manual_rotation = False
+            face_meta = {
+                "backend": "unavailable",
+                "reason": "ffprobe_failed",
+                "error": str(probe_error),
+            }
         except Exception as fallback_exc:
             use_manual_rotation = False
             face_meta = {
