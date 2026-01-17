@@ -38,10 +38,13 @@ def upload_to_r2(
         client.head_object(Bucket=r2_bucket, Key=key)
 
 
-def callback_backend(callback_url: str, payload: Dict[str, object]) -> None:
+def callback_backend(callback_url: str, payload: Dict[str, object], token: str | None = None) -> None:
     # Notify backend about job completion.
+    headers = {}
+    if token:
+        headers["x-callback-token"] = token
     try:
-        response = httpx.post(callback_url, json=payload, timeout=15.0)
+        response = httpx.post(callback_url, json=payload, headers=headers, timeout=15.0)
         response.raise_for_status()
     except httpx.HTTPError as exc:
         raise RuntimeError(f"Callback failed: {exc}") from exc

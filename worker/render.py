@@ -187,6 +187,8 @@ def _build_karaoke_text(
     if not words:
         return ""
     total_cs = max(1, int(round(duration * 100)))
+    if total_cs < len(words):
+        return r"\N".join(_ass_escape_line(" ".join(line)) for line in lines)
     if total_cs <= len(words):
         allocations = [1] * total_cs + [0] * (len(words) - total_cs)
     else:
@@ -536,9 +538,18 @@ def render_clips(
     face_meta: Dict[str, object] = {"backend": "unavailable", "reason": "ffprobe_failed"}
     try:
         _width, _height, display_width, display_height, rotation = _probe_video_info(video_path)
-        face_centers, face_meta = _find_face_centers(video_path, clips, rotation)
     except Exception:
         use_manual_rotation = False
+    else:
+        try:
+            face_centers, face_meta = _find_face_centers(video_path, clips, rotation)
+        except Exception as exc:
+            face_centers = {clip.index: [None for _ in clip.segments] for clip in clips}
+            face_meta = {
+                "backend": "unavailable",
+                "reason": "face_detect_failed",
+                "error": str(exc),
+            }
     use_nvenc = _has_nvenc()
     video_codec = "h264_nvenc" if use_nvenc else "libx264"
     preset = "fast" if use_nvenc else "veryfast"

@@ -1,4 +1,5 @@
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import List, Optional
 
@@ -11,17 +12,38 @@ def ensure_dirs(paths: List[Path]) -> None:
 
 def run_cmd(args: List[str], cwd: Optional[Path] = None) -> None:
     # Execute a subprocess command with error handling.
-    try:
-        subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as exc:
-        stderr = exc.stderr.strip() if exc.stderr else ""
-        stdout = exc.stdout.strip() if exc.stdout else ""
+    def _tail(path: Path, limit: int = 4000) -> str:
+        try:
+            data = path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            return ""
+        if len(data) > limit:
+            return data[-limit:]
+        return data
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        stdout_path = Path(tmp_dir) / "stdout.txt"
+        stderr_path = Path(tmp_dir) / "stderr.txt"
+        with stdout_path.open("w", encoding="utf-8") as stdout_file, stderr_path.open(
+            "w", encoding="utf-8"
+        ) as stderr_file:
+            result = subprocess.run(
+                args,
+                cwd=cwd,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                text=True,
+            )
+        if result.returncode == 0:
+            return
+        stderr = _tail(stderr_path).strip()
+        stdout = _tail(stdout_path).strip()
         details = ""
         if stderr:
             details = f"\n{stderr}"
         elif stdout:
             details = f"\n{stdout}"
-        raise RuntimeError(f"Command failed: {' '.join(args)}{details}") from exc
+        raise RuntimeError(f"Command failed: {' '.join(args)}{details}")
 
 
 def download_video(video_url: str, output_path: Path, meta_path: Path) -> None:

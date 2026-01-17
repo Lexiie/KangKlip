@@ -13,6 +13,7 @@ class WorkerConfig:
     max_clip_seconds: int
     language: str
     callback_url: str
+    callback_token: Optional[str]
     r2_endpoint: str
     r2_bucket: str
     r2_access_key: str
@@ -48,6 +49,7 @@ def load_config() -> WorkerConfig:
         max_clip_seconds=int(read_env("MAX_CLIP_SECONDS", "60")),
         language=read_env("OUTPUT_LANGUAGE", "auto"),
         callback_url=read_env("CALLBACK_URL"),
+        callback_token=os.getenv("CALLBACK_TOKEN"),
         r2_endpoint=read_env("R2_ENDPOINT"),
         r2_bucket=read_env("R2_BUCKET"),
         r2_access_key=read_env("R2_ACCESS_KEY_ID"),

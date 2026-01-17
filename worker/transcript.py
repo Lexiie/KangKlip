@@ -101,8 +101,8 @@ def transcribe_audio(audio_path: Path, language: str, asr_model: str) -> List[Tr
         entries.append(
             TranscriptEntry(
                 text=segment.text.strip(),
-                start=segment.start,
-                duration=segment.end - segment.start,
+                start=float(segment.start),
+                duration=float(segment.end - segment.start),
                 words=words,
             )
         )

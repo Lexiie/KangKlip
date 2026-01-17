@@ -20,7 +20,7 @@ export default function HomePage() {
   const [hint, setHint] = useState<string | null>(null);
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
-  const backendStatus = apiBase ? "Connected" : "Disconnected";
+  const backendStatus = apiBase ? "Configured" : "Missing";
 
   const submitJob = async () => {
     // Submit the job to the backend API.
@@ -75,7 +75,7 @@ export default function HomePage() {
               : "bg-slate-200 text-slate-600"
           }`}
         >
-          Backend: {backendStatus}
+          API Base: {backendStatus}
         </span>
       </header>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
 type JobStatusResponse = {
@@ -8,6 +8,7 @@ type JobStatusResponse = {
   status: string;
   stage?: string;
   progress?: number;
+  error?: string | null;
 };
 
 type ClipResult = {
@@ -30,45 +31,91 @@ export default function JobPage() {
   const [status, setStatus] = useState<JobStatusResponse | null>(null);
   const [results, setResults] = useState<JobResultsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const jobIdRef = useRef<string | null>(null);
 
-  const loadStatus = async () => {
+  jobIdRef.current = jobId ?? null;
+
+  useEffect(() => {
+    if (!jobId) return;
+    setStatus(null);
+    setResults(null);
+    setError(null);
+  }, [jobId]);
+
+  const loadResults = useCallback(async () => {
+    // Load clip results and signed URLs.
+    if (!jobId) return;
+    const requestJobId = jobId;
+    try {
+      const response = await fetch(`${apiBase}/api/jobs/${jobId}/results`);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || "Failed to load job results");
+      }
+      const data = (await response.json()) as JobResultsResponse;
+      if (jobIdRef.current !== requestJobId) {
+        return;
+      }
+      setResults(data);
+    } catch (err) {
+      if (jobIdRef.current !== requestJobId) {
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Unknown error");
+    }
+  }, [apiBase, jobId]);
+
+  const loadStatus = useCallback(async () => {
     // Poll job status from the backend.
+    if (!jobId) return;
+    const requestJobId = jobId;
     try {
       const response = await fetch(`${apiBase}/api/jobs/${jobId}`);
       if (!response.ok) {
         throw new Error("Failed to load job status");
       }
       const data = (await response.json()) as JobStatusResponse;
+      if (jobIdRef.current !== requestJobId) {
+        return;
+      }
       setStatus(data);
-      if (data.status === "SUCCEEDED") {
+      if (data.status === "FAILED" && data.error) {
+        setError(data.error);
+      }
+      if (data.status === "SUCCEEDED" && !results) {
         await loadResults();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    }
-  };
-
-  const loadResults = async () => {
-    // Load clip results and signed URLs.
-    try {
-      const response = await fetch(`${apiBase}/api/jobs/${jobId}/results`);
-      if (!response.ok) {
+      if (jobIdRef.current !== requestJobId) {
         return;
       }
-      const data = (await response.json()) as JobResultsResponse;
-      setResults(data);
-    } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     }
-  };
+  }, [apiBase, jobId, loadResults, results]);
+
+  const isTerminal = status?.status === "SUCCEEDED" || status?.status === "FAILED";
+  const shouldPoll = !isTerminal || (status?.status === "SUCCEEDED" && !results);
 
   useEffect(() => {
     // Start polling once the component mounts.
     if (!jobId) return;
-    loadStatus();
-    const interval = setInterval(loadStatus, 5000);
-    return () => clearInterval(interval);
-  }, [jobId]);
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled) return;
+      await loadStatus();
+    };
+    if (!shouldPoll) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    tick();
+    const interval = setInterval(tick, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [jobId, loadStatus, shouldPoll]);
 
   const shortJobId = jobId ? `${jobId.slice(0, 6)}…${jobId.slice(-4)}` : "";
   const [showFullId, setShowFullId] = useState(false);
@@ -142,13 +189,17 @@ export default function JobPage() {
             Ready when done
           </span>
         </div>
-        {!results ? (
+        {status?.status === "FAILED" ? (
+          <p className="mt-3 text-sm text-red-600">
+            Job failed{status?.error ? `: ${status.error}` : "."}
+          </p>
+        ) : !results ? (
           <p className="mt-3 text-sm text-slate-500">Clips will appear once the job finishes.</p>
         ) : (
           <div className="mt-4 flex flex-col gap-3">
             {results.clips.map((clip, index) => (
               <div
-                key={clip.download_url}
+                key={clip.file || `clip-${index}`}
                 className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4"
               >
                 <div className="flex items-center justify-between gap-3">

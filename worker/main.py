@@ -40,6 +40,7 @@ def main() -> None:
                     "stage": stage,
                     "progress": progress,
                 },
+                config.callback_token,
             )
         except Exception:
             # Best-effort progress update; do not fail the job.
@@ -141,10 +142,18 @@ def main() -> None:
         )
         report("UPLOAD", 95)
         log("callback success")
-        callback_backend(
-            config.callback_url,
-            {"job_id": config.job_id, "status": "SUCCEEDED", "r2_prefix": config.r2_prefix},
-        )
+        try:
+            callback_backend(
+                config.callback_url,
+                {
+                    "job_id": config.job_id,
+                    "status": "SUCCEEDED",
+                    "r2_prefix": config.r2_prefix,
+                },
+                config.callback_token,
+            )
+        except Exception as exc:
+            print(f"callback warning: {exc}", file=sys.stderr)
     except Exception as exc:
         error_message = str(exc)
         print(f"worker error: {error_message}", file=sys.stderr)
@@ -162,10 +171,14 @@ def main() -> None:
         except Exception:
             pass
         log("callback failed")
-        callback_backend(
-            config.callback_url,
-            {"job_id": config.job_id, "status": "FAILED", "error": error_message},
-        )
+        try:
+            callback_backend(
+                config.callback_url,
+                {"job_id": config.job_id, "status": "FAILED", "error": error_message},
+                config.callback_token,
+            )
+        except Exception as callback_exc:
+            print(f"callback failed: {callback_exc}", file=sys.stderr)
         raise
 
 

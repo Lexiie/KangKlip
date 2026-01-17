@@ -143,9 +143,10 @@ def build_candidates(
     candidates: List[Dict[str, object]] = []
     for idx, chunk in enumerate(chunks, start=1):
         start = float(chunk["start"])
-        end = min(float(chunk["end"]), start + max_seconds)
+        chunk_end = float(chunk["end"])
+        end = min(chunk_end, start + max_seconds)
         if end - start < min_seconds:
-            end = start + min_seconds
+            end = min(chunk_end, start + min_seconds)
         candidates.append(
             {
                 "id": f"c{idx:03d}",

@@ -13,9 +13,11 @@ export type Config = {
   r2AccessKeyId: string;
   r2SecretAccessKey: string;
   callbackBaseUrl: string;
+  callbackToken: string;
   llmApiBase: string;
   llmModelName: string;
   llmApiKey?: string;
+  corsOrigins: string[];
 };
 
 const required = (key: string): string => {
@@ -24,6 +26,20 @@ const required = (key: string): string => {
     throw new Error(`Missing env var ${key}`);
   }
   return value;
+};
+
+const parseCorsOrigins = (): string[] => {
+  const raw = process.env.CORS_ORIGINS;
+  if (raw) {
+    const origins = raw
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+    if (origins.length > 0) {
+      return origins;
+    }
+  }
+  return ["http://localhost:3000", "http://127.0.0.1:3000"];
 };
 
 export const getConfig = (): Config => {
@@ -38,9 +54,11 @@ export const getConfig = (): Config => {
     r2AccessKeyId: required("R2_ACCESS_KEY_ID"),
     r2SecretAccessKey: required("R2_SECRET_ACCESS_KEY"),
     callbackBaseUrl: required("CALLBACK_BASE_URL"),
+    callbackToken: required("CALLBACK_TOKEN"),
     llmApiBase: required("LLM_API_BASE"),
     llmModelName: required("LLM_MODEL_NAME"),
     llmApiKey: process.env.LLM_API_KEY,
+    corsOrigins: parseCorsOrigins(),
   };
 };
 

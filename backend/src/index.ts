@@ -14,16 +14,16 @@ import {
 import { createDeployment, createNosanaClient, fetchMarketCache, startDeployment } from "./nosana.js";
 import { getObjectStream, loadManifest, signClipUrls } from "./r2.js";
 
+const config = getConfig();
+
 const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: config.corsOrigins,
     credentials: false,
   })
 );
-
-const config = getConfig();
 const store = new JobStore(config.redisUrl);
 await store.connect();
 const nosana = createNosanaClient(config);
@@ -54,6 +54,7 @@ const buildWorkerEnv = (
     LLM_TIMEOUT_SECONDS: "20",
     LLM_MODEL_NAME: config.llmModelName,
     CALLBACK_URL: buildCallbackUrl(config.callbackBaseUrl),
+    CALLBACK_TOKEN: config.callbackToken,
     R2_PREFIX: `jobs/${jobId}/`,
   };
   if (config.llmApiKey) {
@@ -101,9 +102,14 @@ app.post("/api/jobs", async (req, res) => {
   await store.update(jobId, { nosana_run_id: deploymentId });
 
   setTimeout(async () => {
-    const startError = await startDeployment(nosana, deploymentId);
-    if (startError) {
-      await store.update(jobId, { start_error: startError });
+    try {
+      const startError = await startDeployment(nosana, deploymentId);
+      if (startError) {
+        await store.update(jobId, { start_error: startError });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await store.update(jobId, { start_error: message });
     }
   }, 0);
 
@@ -123,6 +129,7 @@ app.get("/api/jobs/:jobId", async (req, res) => {
     progress: data.progress ?? null,
     start_error: data.start_error ?? null,
     nosana_run_id: data.nosana_run_id ?? null,
+    error: data.error ?? null,
   });
 });
 
@@ -248,25 +255,46 @@ app.get("/api/jobs/:jobId/clips/:clipFile/download", async (req, res) => {
 });
 
 app.post("/api/callback/nosana", async (req, res) => {
+  const token = req.get("x-callback-token");
+  if (token !== config.callbackToken) {
+    return res.status(401).json({ detail: "invalid callback token" });
+  }
   const payload = req.body as CallbackRequest;
   if (!payload?.job_id || !isValidJobId(payload.job_id)) {
     return res.status(400).json({ detail: "invalid job id" });
+  }
+  if (!Object.values(JOB_STATUS).includes(payload.status)) {
+    return res.status(400).json({ detail: "invalid status" });
   }
   const data = await store.get(payload.job_id);
   if (!data) {
     return res.status(404).json({ detail: "job not found" });
   }
-  await store.update(payload.job_id, {
+  const updates: Record<string, unknown> = {
     status: payload.status,
-    r2_prefix: payload.r2_prefix,
-    error: payload.error,
-    stage: payload.stage ?? JOB_STAGE.DONE,
-    progress: payload.progress ?? 100,
-  });
+  };
+  if (payload.r2_prefix) {
+    updates.r2_prefix = payload.r2_prefix;
+  }
+  if (payload.error) {
+    updates.error = payload.error;
+  }
+  if (payload.stage && Object.values(JOB_STAGE).includes(payload.stage)) {
+    updates.stage = payload.stage;
+  } else if ([JOB_STATUS.SUCCEEDED, JOB_STATUS.FAILED].includes(payload.status)) {
+    updates.stage = JOB_STAGE.DONE;
+  }
+  if (typeof payload.progress === "number" && Number.isFinite(payload.progress)) {
+    updates.progress = Math.min(100, Math.max(0, payload.progress));
+  } else if ([JOB_STATUS.SUCCEEDED, JOB_STATUS.FAILED].includes(payload.status)) {
+    updates.progress = 100;
+  }
+  await store.update(payload.job_id, updates);
   return res.json({ ok: true });
 });
 
 const port = Number(process.env.PORT || 8000);
-app.listen(port, "127.0.0.1", () => {
-  console.log(`Backend listening on http://127.0.0.1:${port}`);
+const host = process.env.HOST || "0.0.0.0";
+app.listen(port, host, () => {
+  console.log(`Backend listening on http://${host}:${port}`);
 });
