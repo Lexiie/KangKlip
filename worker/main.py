@@ -113,13 +113,17 @@ def main() -> None:
         manifest = build_manifest(config.job_id, clips)
         manifest["selection"] = get_last_selection()
         log("upload artifacts")
+        artifact_files = [transcript_path, chunks_path, edl_path, meta_path, stats_path]
+        face_log_path = output_dir / "face_log.json"
+        if face_log_path.exists():
+            artifact_files.append(face_log_path)
         upload_to_r2(
             config.r2_endpoint,
             config.r2_bucket,
             config.r2_access_key,
             config.r2_secret_key,
             config.r2_prefix,
-            [transcript_path, chunks_path, edl_path, meta_path, stats_path],
+            artifact_files,
             clip_files,
             manifest,
         )

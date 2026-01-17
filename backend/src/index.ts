@@ -177,7 +177,11 @@ app.get("/api/jobs/:jobId/results", async (req, res) => {
   }
 });
 
-app.get("/api/jobs/:jobId/clips/:clipFile", async (req, res) => {
+const streamClip = async (
+  req: express.Request,
+  res: express.Response,
+  options?: { attachment?: boolean }
+) => {
   const jobId = req.params.jobId;
   const clipFile = req.params.clipFile;
   const data = await store.get(jobId);
@@ -206,6 +210,8 @@ app.get("/api/jobs/:jobId/clips/:clipFile", async (req, res) => {
     }
     if (response.ContentType) {
       res.setHeader("Content-Type", response.ContentType);
+    } else {
+      res.setHeader("Content-Type", "video/mp4");
     }
     if (response.ContentLength) {
       res.setHeader("Content-Length", String(response.ContentLength));
@@ -214,8 +220,9 @@ app.get("/api/jobs/:jobId/clips/:clipFile", async (req, res) => {
       res.status(206);
       res.setHeader("Content-Range", response.ContentRange);
     }
-    if (response.AcceptRanges) {
-      res.setHeader("Accept-Ranges", response.AcceptRanges);
+    res.setHeader("Accept-Ranges", "bytes");
+    if (options?.attachment) {
+      res.setHeader("Content-Disposition", `attachment; filename=\"${clipFile}\"`);
     }
     res.setHeader("Cache-Control", "private, max-age=3600");
     const body = response.Body as unknown;
@@ -230,6 +237,14 @@ app.get("/api/jobs/:jobId/clips/:clipFile", async (req, res) => {
     const message = err instanceof Error ? err.message : String(err);
     return res.status(502).json({ detail: message });
   }
+};
+
+app.get("/api/jobs/:jobId/clips/:clipFile", async (req, res) => {
+  return streamClip(req, res);
+});
+
+app.get("/api/jobs/:jobId/clips/:clipFile/download", async (req, res) => {
+  return streamClip(req, res, { attachment: true });
 });
 
 app.post("/api/callback/nosana", async (req, res) => {

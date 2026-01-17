@@ -394,6 +394,7 @@ def _render_montage(
             )
         )
         filters.append(f"{concat_inputs}concat=n={len(clip.segments)}:v=1:a=1[v][a]")
+        filters.append("[a]loudnorm=I=-16:TP=-1.5:LRA=11[an]")
     else:
         concat_inputs = "".join(f"[v{idx}]" for idx in range(len(clip.segments)))
         filters.append(f"{concat_inputs}concat=n={len(clip.segments)}:v=1:a=0[v]")
@@ -422,7 +423,7 @@ def _render_montage(
     if use_manual_rotation:
         args += ["-metadata:s:v:0", "rotate=0"]
     if has_audio:
-        args += ["-map", "[a]", "-c:a", "aac"]
+        args += ["-map", "[an]", "-c:a", "aac"]
     else:
         args += ["-an"]
     args.append(str(output_path))
@@ -448,9 +449,10 @@ def render_clips(
     display_width = 0
     display_height = 0
     face_centers: Dict[int, List[Optional[Tuple[float, float]]]] = {}
+    face_meta: Dict[str, object] = {"backend": "unavailable", "reason": "ffprobe_failed"}
     try:
         _width, _height, display_width, display_height, rotation = _probe_video_info(video_path)
-        face_centers = _find_face_centers(video_path, clips, rotation)
+        face_centers, face_meta = _find_face_centers(video_path, clips, rotation)
     except Exception:
         use_manual_rotation = False
     use_nvenc = _has_nvenc()
@@ -506,7 +508,7 @@ def render_clips(
                 if use_manual_rotation:
                     args += ["-metadata:s:v:0", "rotate=0"]
                 if has_audio:
-                    args += ["-c:a", "aac"]
+                    args += ["-c:a", "aac", "-af", "loudnorm=I=-16:TP=-1.5:LRA=11"]
                 else:
                     args += ["-an"]
                 args.append(str(output_path))
@@ -552,7 +554,7 @@ def render_clips(
                 if use_manual_rotation:
                     args += ["-metadata:s:v:0", "rotate=0"]
                 if has_audio:
-                    args += ["-c:a", "aac"]
+                    args += ["-c:a", "aac", "-af", "loudnorm=I=-16:TP=-1.5:LRA=11"]
                 else:
                     args += ["-an"]
                 args.append(str(output_path))
@@ -570,6 +572,28 @@ def render_clips(
                     use_manual_rotation,
                 )
         outputs.append(output_path)
+    try:
+        face_log = {
+            "backend": face_meta.get("backend"),
+            "reason": face_meta.get("reason"),
+            "clips": [
+                {
+                    "index": clip.index,
+                    "segments": len(clip.segments),
+                    "detected": sum(
+                        1
+                        for center in (face_centers.get(clip.index) or [])
+                        if center is not None
+                    ),
+                }
+                for clip in clips
+            ],
+        }
+        (output_dir / "face_log.json").write_text(
+            json.dumps(face_log), encoding="utf-8"
+        )
+    except Exception:
+        pass
     return outputs
 
 
@@ -577,20 +601,26 @@ def _find_face_centers(
     video_path: Path,
     clips: List[ClipSpec],
     rotation: int,
-) -> Dict[int, List[Optional[Tuple[float, float]]]]:
+) -> Tuple[Dict[int, List[Optional[Tuple[float, float]]]], Dict[str, object]]:
     # Detect face centers for each segment using OpenCV DNN (CUDA when available).
     try:
         import cv2
     except Exception:
         print("face detect: opencv unavailable, fallback to center crop")
-        return {clip.index: [None for _ in clip.segments] for clip in clips}
+        return (
+            {clip.index: [None for _ in clip.segments] for clip in clips},
+            {"backend": "unavailable", "reason": "opencv_missing"},
+        )
 
     model_dir = Path("/app/models/face")
     prototxt = model_dir / "opencv_face_detector.pbtxt"
     weights = model_dir / "opencv_face_detector_uint8.pb"
     if not prototxt.exists() or not weights.exists():
         print("face detect: model files missing, fallback to center crop")
-        return {clip.index: [None for _ in clip.segments] for clip in clips}
+        return (
+            {clip.index: [None for _ in clip.segments] for clip in clips},
+            {"backend": "unavailable", "reason": "model_missing"},
+        )
 
     net = cv2.dnn.readNetFromTensorflow(str(weights), str(prototxt))
     try:
@@ -603,7 +633,10 @@ def _find_face_centers(
     capture = cv2.VideoCapture(str(video_path))
     if not capture.isOpened():
         print("face detect: failed to open video, fallback to center crop")
-        return {clip.index: [None for _ in clip.segments] for clip in clips}
+        return (
+            {clip.index: [None for _ in clip.segments] for clip in clips},
+            {"backend": "unavailable", "reason": "video_open_failed"},
+        )
 
     def rotate_frame(frame):
         if rotation == 90:
@@ -681,7 +714,7 @@ def _find_face_centers(
         print(f"face detect: clip {clip.index} segments {len(clip.segments)} detected {detected}")
         centers[clip.index] = clip_centers
     capture.release()
-    return centers
+    return centers, {"backend": "opencv-dnn"}
 
 
 def _build_clip_crop_filters(
