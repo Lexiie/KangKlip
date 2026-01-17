@@ -62,7 +62,22 @@ def _probe_video_info(video_path: Path) -> Tuple[int, int, int, int, int, Option
     )
     if result.stderr:
         print(f"ffprobe warning: {result.stderr.strip()}")
-    payload = json.loads(result.stdout)
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        stdout_sample = result.stdout[:400].replace("\n", " ")
+        stderr_sample = result.stderr[:400].replace("\n", " ") if result.stderr else ""
+        print(f"ffprobe json error: {exc}")
+        if stdout_sample:
+            print(f"ffprobe stdout sample: {stdout_sample}")
+        if stderr_sample:
+            print(f"ffprobe stderr sample: {stderr_sample}")
+        start = result.stdout.find("{")
+        end = result.stdout.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            payload = json.loads(result.stdout[start : end + 1])
+        else:
+            raise
     streams = payload.get("streams", [])
     if not streams:
         raise RuntimeError("Unable to probe video dimensions")
@@ -198,7 +213,10 @@ def _format_ass_time(seconds: float) -> str:
 
 def _wrap_caption(text: str, max_chars: int = 24, max_lines: int = 2) -> List[List[str]]:
     # Wrap caption words into short lines to fit 9:16 safely.
-    words = [word for word in text.replace("\n", " ").split(" ") if word]
+    raw_words = [word for word in text.replace("\n", " ").split(" ") if word]
+    words: List[str] = []
+    for word in raw_words:
+        words.extend(_split_long_word(word, max_chars))
     if not words:
         return []
     lines: List[List[str]] = []
@@ -222,6 +240,22 @@ def _wrap_caption(text: str, max_chars: int = 24, max_lines: int = 2) -> List[Li
     if remaining:
         kept.append(remaining)
     return kept
+
+
+def _split_long_word(word: str, max_chars: int) -> List[str]:
+    if max_chars <= 0:
+        return [word]
+    if len(word) <= max_chars:
+        return [word]
+    parts: List[str] = []
+    remaining = word
+    while len(remaining) > max_chars:
+        cut = max(1, max_chars - 1)
+        parts.append(remaining[:cut] + "-")
+        remaining = remaining[cut:]
+    if remaining:
+        parts.append(remaining)
+    return parts
 
 
 def _ass_escape_line(line: str) -> str:
@@ -363,6 +397,9 @@ def _build_ass_subtitles(
     output_path: Path,
 ) -> Optional[Path]:
     # Build ASS subtitles aligned to the concatenated clip timeline.
+    caption = _caption_config()
+    max_chars = caption["max_chars"]
+    max_lines = caption["max_lines"]
     events: List[str] = []
     last_end = 0.0
     offset = 0.0
@@ -399,10 +436,21 @@ def _build_ass_subtitles(
                             "end": end - entry_start,
                         }
                     )
-                if adjusted_words:
-                    text = _build_karaoke_words(adjusted_words)
+                has_long_word = any(
+                    len(str(word.get("word", "")).strip()) > max_chars
+                    for word in adjusted_words
+                )
+                if adjusted_words and not has_long_word:
+                    text = _build_karaoke_words(
+                        adjusted_words, max_chars=max_chars, max_lines=max_lines
+                    )
                 else:
-                    text = _build_karaoke_text(entry.text, rel_end - rel_start)
+                    text = _build_karaoke_text(
+                        entry.text,
+                        rel_end - rel_start,
+                        max_chars=max_chars,
+                        max_lines=max_lines,
+                    )
                 if not text:
                     continue
                 events.append(
@@ -420,7 +468,12 @@ def _build_ass_subtitles(
             if rel_end <= rel_start:
                 offset += segment_duration
                 continue
-            text = _build_karaoke_text(segment.text, rel_end - rel_start)
+            text = _build_karaoke_text(
+                segment.text,
+                rel_end - rel_start,
+                max_chars=max_chars,
+                max_lines=max_lines,
+            )
             if text:
                 events.append(
                     "Dialogue: 0,{start},{end},Default,,0,0,0,,{text}".format(
@@ -438,13 +491,20 @@ def _build_ass_subtitles(
         "[Script Info]",
         "ScriptType: v4.00+",
         "WrapStyle: 2",
-        "PlayResX: 1080",
-        "PlayResY: 1920",
+        f"PlayResX: {caption['play_res_x']}",
+        f"PlayResY: {caption['play_res_y']}",
         "ScaledBorderAndShadow: yes",
         "",
         "[V4+ Styles]",
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        "Style: Default,DejaVu Sans,80,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,1,2,80,80,150,1",
+        "Style: Default,{font},{size},&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,{outline},{shadow},2,{margin_h},{margin_h},{margin_v},1".format(
+            font=caption["font"],
+            size=caption["font_size"],
+            outline=caption["outline"],
+            shadow=caption["shadow"],
+            margin_h=caption["margin_h"],
+            margin_v=caption["margin_v"],
+        ),
         "",
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
@@ -992,3 +1052,38 @@ def _parse_resolution_env() -> Tuple[int, int]:
             if width > 0 and height > 0:
                 return width, height
     return 1080, 1920
+
+
+def _caption_config() -> Dict[str, int | str]:
+    target_width, target_height = _parse_resolution_env()
+    scale = target_height / 1920
+    font = os.getenv("CAPTION_FONT", "Roboto")
+
+    base_size = int(round(68 * scale))
+    font_size = _parse_int_env("CAPTION_FONT_SIZE", 32, 140) or base_size
+
+    base_chars = int(round(22 * (target_width / 1080)))
+    max_chars = _parse_int_env("CAPTION_MAX_CHARS", 12, 40) or base_chars
+
+    max_lines = _parse_int_env("CAPTION_MAX_LINES", 1, 4) or 3
+
+    base_margin_h = int(round(120 * scale))
+    base_margin_v = int(round(140 * scale))
+    margin_h = _parse_int_env("CAPTION_MARGIN_H", 40, 260) or base_margin_h
+    margin_v = _parse_int_env("CAPTION_MARGIN_V", 60, 360) or base_margin_v
+
+    outline = max(2, int(round(font_size / 14)))
+    shadow = max(1, int(round(font_size / 40)))
+
+    return {
+        "font": font,
+        "font_size": font_size,
+        "max_chars": max_chars,
+        "max_lines": max_lines,
+        "margin_h": margin_h,
+        "margin_v": margin_v,
+        "outline": outline,
+        "shadow": shadow,
+        "play_res_x": target_width,
+        "play_res_y": target_height,
+    }

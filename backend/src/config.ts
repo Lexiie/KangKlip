@@ -18,6 +18,16 @@ export type Config = {
   llmModelName: string;
   llmApiKey?: string;
   corsOrigins: string[];
+  renderResolution?: string;
+  renderMaxFps?: string;
+  renderCrf?: string;
+  renderPreset?: string;
+  captionFont?: string;
+  captionFontSize?: string;
+  captionMaxChars?: string;
+  captionMaxLines?: string;
+  captionMarginH?: string;
+  captionMarginV?: string;
 };
 
 const required = (key: string): string => {
@@ -59,6 +69,16 @@ export const getConfig = (): Config => {
     llmModelName: required("LLM_MODEL_NAME"),
     llmApiKey: process.env.LLM_API_KEY,
     corsOrigins: parseCorsOrigins(),
+    renderResolution: process.env.RENDER_RESOLUTION,
+    renderMaxFps: process.env.RENDER_MAX_FPS,
+    renderCrf: process.env.RENDER_CRF,
+    renderPreset: process.env.RENDER_PRESET,
+    captionFont: process.env.CAPTION_FONT,
+    captionFontSize: process.env.CAPTION_FONT_SIZE,
+    captionMaxChars: process.env.CAPTION_MAX_CHARS,
+    captionMaxLines: process.env.CAPTION_MAX_LINES,
+    captionMarginH: process.env.CAPTION_MARGIN_H,
+    captionMarginV: process.env.CAPTION_MARGIN_V,
   };
 };
 

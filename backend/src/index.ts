@@ -57,6 +57,23 @@ const buildWorkerEnv = (
     CALLBACK_TOKEN: config.callbackToken,
     R2_PREFIX: `jobs/${jobId}/`,
   };
+  const optionalEnv: Record<string, string | undefined> = {
+    RENDER_RESOLUTION: config.renderResolution,
+    RENDER_MAX_FPS: config.renderMaxFps,
+    RENDER_CRF: config.renderCrf,
+    RENDER_PRESET: config.renderPreset,
+    CAPTION_FONT: config.captionFont,
+    CAPTION_FONT_SIZE: config.captionFontSize,
+    CAPTION_MAX_CHARS: config.captionMaxChars,
+    CAPTION_MAX_LINES: config.captionMaxLines,
+    CAPTION_MARGIN_H: config.captionMarginH,
+    CAPTION_MARGIN_V: config.captionMarginV,
+  };
+  for (const [key, value] of Object.entries(optionalEnv)) {
+    if (value) {
+      env[key] = value;
+    }
+  }
   if (config.llmApiKey) {
     env.LLM_API_KEY = config.llmApiKey;
   }

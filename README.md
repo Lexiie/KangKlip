@@ -159,6 +159,11 @@ Optional overrides:
 - `RENDER_MAX_FPS` (e.g. `30`, used for download selection and render fps)
 - `RENDER_CRF` (e.g. `18`)
 - `RENDER_PRESET` (e.g. `medium`)
+- `CAPTION_FONT` (default `Roboto`)
+- `CAPTION_FONT_SIZE` (default scales from 68 @ 1080x1920)
+- `CAPTION_MAX_CHARS` (default scales from 22 @ 1080x1920)
+- `CAPTION_MAX_LINES` (default `3`)
+- `CAPTION_MARGIN_H` / `CAPTION_MARGIN_V`
 
 ## Demo Workflow (Local)
 

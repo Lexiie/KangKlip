@@ -12,6 +12,7 @@ RUN apt-get update \
     unzip \
     libgl1 \
     libglib2.0-0 \
+    fonts-roboto \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
