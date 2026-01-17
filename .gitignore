@@ -29,3 +29,5 @@ dump.rdb
 
 # Manual deployment files
 nosana_create_body_manual.json
+manual_test/
+scripts/
