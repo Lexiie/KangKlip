@@ -28,6 +28,7 @@ export type Config = {
   captionMaxLines?: string;
   captionMarginH?: string;
   captionMarginV?: string;
+  asrSkipSecondPass?: string;
 };
 
 const required = (key: string): string => {
@@ -79,6 +80,7 @@ export const getConfig = (): Config => {
     captionMaxLines: process.env.CAPTION_MAX_LINES,
     captionMarginH: process.env.CAPTION_MARGIN_H,
     captionMarginV: process.env.CAPTION_MARGIN_V,
+    asrSkipSecondPass: process.env.ASR_SKIP_SECOND_PASS,
   };
 };
 

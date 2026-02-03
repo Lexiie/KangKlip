@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from typing import Dict, List
 
@@ -75,7 +76,12 @@ def transcribe_audio(audio_path: Path, language: str, asr_model: str) -> List[Tr
                 print(f"asr detected language={detected} prob={prob:.2f}")
             else:
                 print(f"asr detected language={detected}")
-            if detected in {"id", "en"}:
+            skip_second = os.getenv("ASR_SKIP_SECOND_PASS", "false").lower() in {
+                "1",
+                "true",
+                "yes",
+            }
+            if detected in {"id", "en"} and not skip_second:
                 segments, _ = model.transcribe(
                     str(audio_path),
                     language=detected,

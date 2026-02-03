@@ -68,6 +68,7 @@ const buildWorkerEnv = (
     CAPTION_MAX_LINES: config.captionMaxLines,
     CAPTION_MARGIN_H: config.captionMarginH,
     CAPTION_MARGIN_V: config.captionMarginV,
+    ASR_SKIP_SECOND_PASS: config.asrSkipSecondPass,
   };
   for (const [key, value] of Object.entries(optionalEnv)) {
     if (value) {
