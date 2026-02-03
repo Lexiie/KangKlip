@@ -14,13 +14,13 @@ export default function HomePage() {
   const [videoUrl, setVideoUrl] = useState("");
   const [clipDuration, setClipDuration] = useState(45);
   const [clipCount, setClipCount] = useState(2);
-  const [language, setLanguage] = useState("auto");
+  const [language] = useState("auto");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
-  const backendStatus = apiBase ? "Configured" : "Missing";
 
   const submitJob = async () => {
     // Submit the job to the backend API.
@@ -62,144 +62,228 @@ export default function HomePage() {
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-5 pb-28">
-      <header className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-orange-500" />
-          <span className="text-sm font-semibold text-slate-900">KangKlip</span>
-        </div>
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-            backendStatus === "Connected"
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-slate-200 text-slate-600"
-          }`}
+    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 pb-28 pt-24">
+      <header className="reveal stagger-1 fixed left-0 right-0 top-0 z-50">
+        <div className="relative mx-auto flex w-full max-w-4xl items-center justify-between rounded-b-2xl border border-white/10 bg-black/90 px-4 py-3 shadow-[0_30px_80px_-50px_rgba(0,0,0,0.9)] backdrop-blur">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <svg
+                viewBox="0 0 48 48"
+                className="h-7 w-7"
+                role="img"
+                aria-label="KangKlip"
+              >
+                <rect
+                  x="5"
+                  y="5"
+                  width="38"
+                  height="38"
+                  rx="10"
+                  fill="none"
+                  stroke="white"
+                  strokeWidth="2"
+                />
+                <rect x="14" y="13" width="8" height="22" fill="white" />
+                <rect x="26" y="13" width="8" height="22" fill="#ff3b30" />
+                <rect x="10" y="10" width="28" height="28" fill="none" stroke="#ff3b30" strokeOpacity="0.45" strokeWidth="1" />
+              </svg>
+              <span className="text-xs font-display tracking-[0.35em] text-white">KangKlip</span>
+            </div>
+            <nav className="hidden items-center gap-4 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/60 sm:flex">
+              <a href="#builder" className="transition hover:text-red-400">
+                Builder
+              </a>
+            </nav>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/5 text-xs font-semibold uppercase tracking-[0.25em] text-white/70 sm:hidden"
+            aria-expanded={menuOpen}
+            aria-controls="mobile-nav"
+            aria-label="Toggle navigation"
+          >
+            {menuOpen ? "×" : "≡"}
+          </button>
+          {menuOpen ? (
+            <button
+              type="button"
+              onClick={() => setMenuOpen(false)}
+              className="fixed inset-0 z-40 bg-black/45 backdrop-blur-sm"
+              aria-label="Close navigation"
+            />
+          ) : null}
+          <div
+            id="mobile-nav"
+            className={`absolute left-0 right-0 top-full z-50 mt-2 origin-top rounded-2xl border border-white/15 bg-black/95 p-4 shadow-[0_30px_80px_-50px_rgba(0,0,0,0.9)] transition duration-300 sm:hidden ${
+              menuOpen
+                ? "pointer-events-auto translate-y-0 opacity-100"
+                : "pointer-events-none -translate-y-2 opacity-0"
+            }`}
+            aria-hidden={!menuOpen}
         >
-          API Base: {backendStatus}
-        </span>
+          <nav className="grid gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
+              {[{ label: "Builder", href: "#builder" }].map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  onClick={() => setMenuOpen(false)}
+                  tabIndex={menuOpen ? 0 : -1}
+                  className="border-b border-white/15 pb-2 transition hover:text-red-400"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          </div>
+        </div>
       </header>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-        <div className="mb-4">
-          <h1 className="text-2xl font-semibold text-slate-900">Generate Clips</h1>
-          <p className="text-sm text-slate-500">Build short clips directly from a video URL.</p>
-        </div>
-
-        <div className="grid gap-5">
-          <label className="grid gap-2 text-sm font-semibold text-slate-700">
-            Video URL
-            <input
-              value={videoUrl}
-              onChange={(event) => setVideoUrl(event.target.value)}
-              placeholder="https://www.youtube.com/watch?v=..."
-              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-base outline-none transition focus:border-orange-400"
-              disabled={loading}
-            />
-            <span className="text-xs text-slate-400">Supports YouTube and direct video links.</span>
-          </label>
-
-          <div className="grid gap-4">
-            <div className="grid gap-2">
-              <span className="text-sm font-semibold text-slate-700">Clip Duration</span>
-              <div className="flex gap-2">
-                {[30, 45, 60].map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setClipDuration(value)}
-                    disabled={loading}
-                    className={`flex-1 rounded-xl border px-3 py-2 text-sm font-semibold transition ${
-                      clipDuration === value
-                        ? "border-orange-500 bg-orange-50 text-orange-700"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-orange-300"
-                    }`}
-                  >
-                    {value}s
-                  </button>
-                ))}
+      <section id="builder" className="reveal stagger-2 border-y border-white/20 py-12">
+        <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-10">
+            <div className="flex items-start gap-6">
+              <span className="mt-2 h-14 w-[3px] bg-red-500" />
+              <div className="space-y-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/45">
+                  Short-form engine
+                </p>
+                <h1 className="text-4xl font-display tracking-wide text-white sm:text-5xl">
+                  Turn long videos into <span className="text-red-400">sharp</span> clips.
+                </h1>
               </div>
             </div>
-
-            <div className="grid gap-2">
-              <span className="text-sm font-semibold text-slate-700">Clip Count</span>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setClipCount((count) => Math.max(1, count - 1))}
-                  disabled={loading || clipCount <= 1}
-                  className="h-10 w-10 rounded-xl border border-slate-200 text-lg font-semibold text-slate-600 disabled:cursor-not-allowed"
-                >
-                  -
-                </button>
-                <span className="min-w-[2rem] text-center text-base font-semibold text-slate-900">
-                  {clipCount}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setClipCount((count) => Math.min(5, count + 1))}
-                  disabled={loading || clipCount >= 5}
-                  className="h-10 w-10 rounded-xl border border-slate-200 text-lg font-semibold text-slate-600 disabled:cursor-not-allowed"
-                >
-                  +
-                </button>
-              </div>
+            <p className="max-w-md text-sm text-white/65 sm:text-base">
+              Paste a URL, set duration and count, and ship short cuts in one run.
+            </p>
+            <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.35em]">
+              <span className="text-red-400">1. URL IN</span>
+              <span className="text-white/35">→</span>
+              <span className="text-white/55">2. CLIPS OUT</span>
+              <span className="text-white/35">→</span>
+              <span className="text-white/55">3. AUTO-CAPTION</span>
             </div>
-
-            <label className="grid gap-2 text-sm font-semibold text-slate-700">
-              Language
-              <select
-                value={language}
-                onChange={(event) => setLanguage(event.target.value)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-base"
-                disabled={loading}
-              >
-                <option value="auto">Auto</option>
-                <option value="en">English</option>
-                <option value="id">Bahasa</option>
-              </select>
-            </label>
           </div>
 
-          {error ? (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              <p className="font-semibold">Request failed. Check backend URL and CORS/origin.</p>
-              <p className="text-xs text-red-500">{error}</p>
+          <div className="lg:border-l lg:border-white/20 lg:pl-8">
+            <div className="space-y-3">
+              <h2 className="text-2xl font-display tracking-wide text-white">
+                Paste your video URL
+              </h2>
+              <p className="text-sm text-white/60">
+                Choose duration and clip count.
+              </p>
             </div>
-          ) : null}
-          {hint ? <p className="text-xs text-slate-500">{hint}</p> : null}
+
+            <div className="mt-8 border border-white/40 bg-black/80 p-6">
+              <label className="grid gap-2 text-xs font-normal uppercase tracking-[0.2em] text-white/55">
+                Video URL
+                <input
+                  value={videoUrl}
+                  onChange={(event) => setVideoUrl(event.target.value)}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="border border-white/50 bg-black px-4 py-3 text-base text-white outline-none transition focus:border-red-500/80"
+                  disabled={loading}
+                />
+                <span className="text-[11px] text-white/45">
+                  Supports YouTube and direct links.
+                </span>
+              </label>
+
+              <div className="mt-8 grid gap-6 border-t border-white/25 pt-6">
+                <div className="grid gap-2">
+                  <span className="text-xs font-normal uppercase tracking-[0.2em] text-white/55">
+                    Clip Duration
+                  </span>
+                  <div className="flex gap-3">
+                    {[30, 45, 60].map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setClipDuration(value)}
+                        disabled={loading}
+                        className={`flex-1 border px-3 py-3 text-base font-normal transition ${
+                          clipDuration === value
+                            ? "border-red-500/70 bg-red-500/10 text-white"
+                            : "border-white/40 bg-black text-white/70 hover:border-red-400/60 hover:text-white"
+                        }`}
+                      >
+                        {value}s
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
+                  <span className="text-xs font-normal uppercase tracking-[0.2em] text-white/55">
+                    Clip Count
+                  </span>
+                  <div className="flex items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setClipCount((count) => Math.max(1, count - 1))}
+                      disabled={loading || clipCount <= 1}
+                      className="h-10 w-10 border border-white/40 bg-black text-base font-normal text-white/80 transition hover:border-red-400/60 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      -
+                    </button>
+                    <span className="min-w-[2rem] text-center text-base font-semibold text-white">
+                      {clipCount}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setClipCount((count) => Math.min(5, count + 1))}
+                      disabled={loading || clipCount >= 5}
+                      className="h-10 w-10 border border-white/40 bg-black text-base font-normal text-white/80 transition hover:border-red-400/60 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <input type="hidden" value={language} readOnly />
+
+              {error ? (
+                <div className="mt-6 border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  <p className="font-semibold">Request failed. Check backend URL and CORS/origin.</p>
+                  <p className="text-xs text-red-300/80">{error}</p>
+                </div>
+              ) : null}
+              {hint ? <p className="mt-3 text-xs text-white/45">{hint}</p> : null}
+
+              <button
+                onClick={submitJob}
+                disabled={loading || !videoUrl}
+                className="mt-8 inline-flex w-full items-center justify-center gap-2 border border-red-500/80 bg-red-500 px-6 py-3 text-base font-semibold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:border-white/25 disabled:bg-white/10 disabled:text-white/30"
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                    Submitting...
+                  </span>
+                ) : (
+                  "Generate Clips"
+                )}
+              </button>
+              <p className="mt-3 text-xs text-white/55">
+                Runs as a single GPU job.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
-      <details className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <summary className="cursor-pointer text-sm font-semibold text-slate-700">Pipeline</summary>
-        <ol className="mt-3 grid gap-2 text-sm text-slate-600">
-          {["Download", "Transcript", "Segment Select", "Render", "Upload"].map((step, index) => (
-            <li key={step} className="flex items-center gap-3">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-700">
-                {index + 1}
-              </span>
-              <span>{step}</span>
-            </li>
-          ))}
-        </ol>
-      </details>
+      <footer className="reveal stagger-3 border-t border-white/20 pt-8">
+        <div className="flex flex-col gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/55 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="h-1.5 w-1.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(255,59,48,0.7)]" />
+            <span className="font-display text-white">KangKlip</span>
+          </div>
+          <span>© 2026 KangKlip</span>
+        </div>
+      </footer>
 
-      <div className="fixed bottom-0 left-0 right-0 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
-        <button
-          onClick={submitJob}
-          disabled={loading || !videoUrl}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-slate-300"
-        >
-          {loading ? (
-            <span className="flex items-center gap-2">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-              Submitting...
-            </span>
-          ) : (
-            "Generate Clips"
-          )}
-        </button>
-      </div>
     </main>
   );
 }

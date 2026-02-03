@@ -4,8 +4,8 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        display: ["Bebas Neue", "sans-serif"],
-        body: ["Space Grotesk", "sans-serif"],
+        display: ["Lilita One", "sans-serif"],
+        body: ["Varela Round", "sans-serif"],
       },
     },
   },

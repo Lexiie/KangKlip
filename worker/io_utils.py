@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -65,19 +66,28 @@ def run_cmd(args: List[str], cwd: Optional[Path] = None) -> None:
             details = f"\n{stderr}"
         elif stdout:
             details = f"\n{stdout}"
-        raise RuntimeError(f"Command failed: {' '.join(args)}{details}")
+    raise RuntimeError(f"Command failed: {' '.join(args)}{details}")
+
+
+def _js_runtime_args() -> List[str]:
+    # Prefer an explicit runtime, otherwise use bun when available.
+    runtime = os.getenv("YTDLP_JS_RUNTIME", "").strip()
+    if runtime:
+        return ["--js-runtimes", runtime]
+    if shutil.which("bun"):
+        return ["--js-runtimes", "bun"]
+    return []
 
 
 def download_video(video_url: str, output_path: Path, meta_path: Path) -> None:
     # Download the source video and store metadata.
-    run_cmd([
-        "yt-dlp",
+    args = ["yt-dlp"]
+    args.extend(_js_runtime_args())
+    args.extend([
         "-f",
         _format_selector(),
         "--merge-output-format",
         "mp4",
-        "--js-runtimes",
-        "bun",
         "-o",
         str(output_path),
         "--write-info-json",
@@ -86,6 +96,7 @@ def download_video(video_url: str, output_path: Path, meta_path: Path) -> None:
         "8",
         video_url,
     ])
+    run_cmd(args)
     info_path = output_path.with_suffix(".info.json")
     if info_path.exists():
         info_path.replace(meta_path)

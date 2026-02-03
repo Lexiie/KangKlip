@@ -1,34 +1,40 @@
-@import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Lilita+One&family=Varela+Round&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
-  font-family: "Space Grotesk", sans-serif;
-  background: #f6f7f9;
-  color: #1b1b1f;
+  font-family: "Varela Round", sans-serif;
+  background: #000;
+  color: #f5f5f5;
 }
 
-.orbit,
-.noise-layer {
-  display: none;
+.grid-overlay {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 34px 34px;
+  opacity: 0.35;
 }
 
 .noise-layer {
   background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPGZpbHRlciBpZD0ibm9pc2UiIHg9IjAiIHk9IjAiIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj4KICAgIDxmZVR1cmJ1bGVuY2UgdHlwZT0iZnJhY3RhbE5vaXNlIiBiYXNlRnJlcXVlbmN5PSIwLjkiIG51bU9jdGF2ZXM9IjIiIHN0aXRjaFRpbGVzPSJzdGl0Y2giLz4KICA8L2ZpbHRlcj4KICA8cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsdGVyPSJ1cmwoI25vaXNlKSIgb3BhY2l0eT0iMC4xNSIvPgo8L3N2Zz4=");
-  background-size: 160px 160px;
-  mix-blend-mode: multiply;
-  opacity: 0.35;
+  background-size: 140px 140px;
+  mix-blend-mode: soft-light;
+  opacity: 0.4;
   pointer-events: none;
 }
 
 .orbit {
-  animation: drift 16s ease-in-out infinite alternate;
+  animation: drift 18s ease-in-out infinite alternate;
 }
 
 @keyframes drift {
@@ -37,5 +43,59 @@ body {
   }
   100% {
     transform: translate3d(12px, -18px, 0) rotate(4deg);
+  }
+}
+
+@keyframes rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.reveal {
+  opacity: 0;
+  animation: rise 720ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.reveal-slow {
+  opacity: 0;
+  animation: rise 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.stagger-1 {
+  animation-delay: 80ms;
+}
+
+.stagger-2 {
+  animation-delay: 160ms;
+}
+
+.stagger-3 {
+  animation-delay: 240ms;
+}
+
+.stagger-4 {
+  animation-delay: 320ms;
+}
+
+.stagger-5 {
+  animation-delay: 400ms;
+}
+
+.stagger-6 {
+  animation-delay: 480ms;
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal-slow {
+    animation: none;
+    opacity: 1;
   }
 }
