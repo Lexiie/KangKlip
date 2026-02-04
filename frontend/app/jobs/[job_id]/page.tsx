@@ -116,7 +116,6 @@ export default function JobPage() {
   const loadResults = useCallback(async () => {
     if (!jobId) return;
     if (!jobToken) {
-      setError("Job token missing. Re-open this job from the create-job response.");
       return;
     }
     const requestJobId = jobId;
@@ -159,7 +158,7 @@ export default function JobPage() {
       if (data.status === "FAILED" && data.error) {
         setError(data.error);
       }
-      if (data.status === "SUCCEEDED" && !results) {
+      if (data.status === "SUCCEEDED" && !results && jobToken) {
         await loadResults();
       }
     } catch (err) {
@@ -171,12 +170,19 @@ export default function JobPage() {
   }, [apiBase, buildHeaders, jobId, loadResults, results]);
 
   const loadPreview = useCallback(
-    async (clip: ClipResult) => {
+    async (clip: ClipResult, force = false) => {
       if (!clip.preview_endpoint || !jobToken) {
         return;
       }
-      if (previewUrls[clip.clip_file]) {
+      if (!force && previewUrls[clip.clip_file]) {
         return;
+      }
+      if (force) {
+        setPreviewUrls((prev) => {
+          const next = { ...prev };
+          delete next[clip.clip_file];
+          return next;
+        });
       }
       setPreviewErrors((prev) => ({ ...prev, [clip.clip_file]: "" }));
       try {
@@ -532,7 +538,7 @@ export default function JobPage() {
                     {previewError ? (
                       <button
                         type="button"
-                        onClick={() => loadPreview(clip)}
+                        onClick={() => loadPreview(clip, true)}
                         className="text-xs font-semibold text-white/70 underline-offset-4 transition hover:text-white"
                       >
                         Retry preview
@@ -562,7 +568,7 @@ export default function JobPage() {
                     )}
                     <button
                       type="button"
-                      onClick={() => loadPreview(clip)}
+                      onClick={() => loadPreview(clip, true)}
                       className="inline-flex w-full items-center justify-center rounded-xl border border-white/10 bg-black/70 px-3 py-2 text-sm font-semibold text-white"
                     >
                       Refresh Preview

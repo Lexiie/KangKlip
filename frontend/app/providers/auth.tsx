@@ -29,6 +29,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [status, setStatus] = useState<AuthState["status"]>("idle");
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const walletRef = useRef<string | null>(null);
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
   const walletAddress = publicKey?.toBase58() ?? null;
 
@@ -42,6 +43,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
     inFlight.current = true;
+    const requestWallet = walletAddress;
     setStatus("authenticating");
     setError(null);
     try {
@@ -73,9 +75,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         throw new Error(text || "Failed to verify signature");
       }
       const verifyPayload = (await verifyRes.json()) as { auth_token: string };
+      if (walletRef.current !== requestWallet) {
+        return;
+      }
       setAuthToken(verifyPayload.auth_token);
       setStatus("ready");
     } catch (err) {
+      if (walletRef.current !== requestWallet) {
+        return;
+      }
       setAuthToken(null);
       setStatus("error");
       setError(err instanceof Error ? err.message : "Auth failed");
@@ -85,12 +93,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [apiBase, signMessage, walletAddress]);
 
   useEffect(() => {
+    walletRef.current = walletAddress;
     if (!connected || !walletAddress) {
       setAuthToken(null);
       setStatus("idle");
       setError(null);
       return;
     }
+    setAuthToken(null);
+    setError(null);
     refresh();
   }, [connected, refresh, walletAddress]);
 
