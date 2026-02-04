@@ -185,6 +185,20 @@ const fetchOnchainCredits = async (walletAddress: string): Promise<number> => {
 // Sends a consume_credit instruction signed by the backend spender key.
 const MEMO_PROGRAM_ID = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
 
+const buildMemo = (value?: string): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  if (trimmed.length <= 64) {
+    return trimmed;
+  }
+  return crypto.createHash("sha256").update(trimmed).digest("hex").slice(0, 64);
+};
+
 const consumeOnchainCredit = async (
   walletAddress: string,
   amount: number,
@@ -204,12 +218,13 @@ const consumeOnchainCredit = async (
     amount: BigInt(amount),
   });
   const tx = new Transaction();
-  if (memo) {
+  const safeMemo = buildMemo(memo);
+  if (safeMemo) {
     tx.add(
       new TransactionInstruction({
         keys: [],
         programId: MEMO_PROGRAM_ID,
-        data: Buffer.from(memo, "utf-8"),
+        data: Buffer.from(safeMemo, "utf-8"),
       })
     );
   }
