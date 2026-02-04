@@ -69,10 +69,14 @@ User → Frontend → Backend (Express) → Nosana GPU Job → R2
 
 ## API Surface
 
-- `POST /api/jobs` → create a job, returns `{ job_id, status }`
+- `POST /api/jobs` → create a job, returns `{ job_id, job_token, status }`
 - `GET /api/jobs/{job_id}` → status + stage + progress + error
 - `GET /api/jobs/{job_id}/results` → clip titles + signed URLs
 - `POST /api/callback/nosana` → worker completion/failure (requires `x-callback-token`)
+
+Notes:
+
+- `POST /api/jobs` now returns `job_token`. Store it temporarily (in memory or localStorage) and send it as `x-job-token` on results/clip requests.
 
 ## Storage Layout (R2)
 

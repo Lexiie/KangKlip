@@ -1,0 +1,10 @@
+[programs.localnet]
+kangklip_credits = "KngKLPcRedit1111111111111111111111111111"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[workspace]
+members = ["programs/kangklip_credits"]
+

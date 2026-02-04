@@ -70,6 +70,27 @@ export const signClipUrls = async (
   return urls;
 };
 
+// Creates a presigned URL for a single object.
+export const signObjectUrl = async (
+  config: Config,
+  key: string,
+  expiresInSeconds: number
+) => {
+  const client = createClient(config);
+  try {
+    return await getSignedUrl(
+      client,
+      new GetObjectCommand({
+        Bucket: config.r2Bucket,
+        Key: key,
+      }),
+      { expiresIn: expiresInSeconds }
+    );
+  } catch (err) {
+    throw new Error(`Failed to sign URL for ${key}: ${String(err)}`);
+  }
+};
+
 // Fetch an object stream (supports optional Range header).
 export const getObjectStream = async (
   config: Config,

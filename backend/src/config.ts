@@ -29,6 +29,11 @@ export type Config = {
   captionMarginH?: string;
   captionMarginV?: string;
   asrSkipSecondPass?: string;
+  solanaRpcUrl: string;
+  usdcMint: string;
+  treasuryAddress: string;
+  creditsProgramId: string;
+  spenderKeypair: string;
 };
 
 const required = (key: string): string => {
@@ -81,6 +86,11 @@ export const getConfig = (): Config => {
     captionMarginH: process.env.CAPTION_MARGIN_H,
     captionMarginV: process.env.CAPTION_MARGIN_V,
     asrSkipSecondPass: process.env.ASR_SKIP_SECOND_PASS,
+    solanaRpcUrl: required("SOLANA_RPC_URL"),
+    usdcMint: required("USDC_MINT"),
+    treasuryAddress: required("TREASURY_ADDRESS"),
+    creditsProgramId: required("CREDITS_PROGRAM_ID"),
+    spenderKeypair: required("SPENDER_KEYPAIR"),
   };
 };
 
