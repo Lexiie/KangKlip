@@ -2,7 +2,7 @@ import cors from "cors";
 import crypto from "crypto";
 import express from "express";
 import { Readable } from "stream";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import { Connection, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
 import { ulid } from "ulid";
 import { getConfig } from "./config.js";
 import { JobRecord, JobStore } from "./storage.js";
@@ -183,7 +183,13 @@ const fetchOnchainCredits = async (walletAddress: string): Promise<number> => {
 };
 
 // Sends a consume_credit instruction signed by the backend spender key.
-const consumeOnchainCredit = async (walletAddress: string, amount: number) => {
+const MEMO_PROGRAM_ID = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
+
+const consumeOnchainCredit = async (
+  walletAddress: string,
+  amount: number,
+  memo?: string
+) => {
   const programId = new PublicKey(config.creditsProgramId);
   const authority = new PublicKey(config.treasuryAddress);
   const userKey = new PublicKey(walletAddress);
@@ -197,7 +203,17 @@ const consumeOnchainCredit = async (walletAddress: string, amount: number) => {
     userCredit: userCreditPda,
     amount: BigInt(amount),
   });
-  const tx = new Transaction().add(instruction);
+  const tx = new Transaction();
+  if (memo) {
+    tx.add(
+      new TransactionInstruction({
+        keys: [],
+        programId: MEMO_PROGRAM_ID,
+        data: Buffer.from(memo, "utf-8"),
+      })
+    );
+  }
+  tx.add(instruction);
   tx.feePayer = spenderKeypair.publicKey;
   const { blockhash, lastValidBlockHeight } = await solanaConnection.getLatestBlockhash(
     "confirmed"
@@ -654,7 +670,7 @@ app.post(
 
       let signature: string;
       try {
-        signature = await consumeOnchainCredit(walletAddress, 1);
+        signature = await consumeOnchainCredit(walletAddress, 1, unlockRequestId);
       } catch {
         const refreshedCredits = await fetchOnchainCredits(walletAddress);
         await store.setIdempotencyResult(unlockRequestId, {
