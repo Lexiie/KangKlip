@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import WalletButton from "./components/wallet-button";
+import { storeJobToken } from "./lib/jobToken";
 
 type JobResponse = {
   job_id: string;
+  job_token: string;
   status: string;
 };
 
@@ -49,6 +52,9 @@ export default function HomePage() {
         throw new Error(text || "Failed to create job");
       }
       const data = (await response.json()) as JobResponse;
+      if (data.job_token) {
+        storeJobToken(data.job_id, data.job_token);
+      }
       router.push(`/jobs/${data.job_id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
@@ -93,7 +99,13 @@ export default function HomePage() {
               <a href="#builder" className="transition hover:text-red-400">
                 Builder
               </a>
+              <a href="/topup" className="transition hover:text-red-400">
+                Top Up
+              </a>
             </nav>
+          </div>
+          <div className="hidden sm:inline-flex">
+            <WalletButton />
           </div>
           <button
             type="button"
@@ -123,19 +135,25 @@ export default function HomePage() {
             aria-hidden={!menuOpen}
         >
           <nav className="grid gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
-              {[{ label: "Builder", href: "#builder" }].map((item) => (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  onClick={() => setMenuOpen(false)}
-                  tabIndex={menuOpen ? 0 : -1}
-                  className="border-b border-white/15 pb-2 transition hover:text-red-400"
-                >
-                  {item.label}
-                </a>
-              ))}
-            </nav>
+            {[
+              { label: "Builder", href: "#builder" },
+              { label: "Top Up", href: "/topup" },
+            ].map((item) => (
+              <a
+                key={item.label}
+                href={item.href}
+                onClick={() => setMenuOpen(false)}
+                tabIndex={menuOpen ? 0 : -1}
+                className="border-b border-white/15 pb-2 transition hover:text-red-400"
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+          <div className="mt-3 sm:hidden">
+            <WalletButton />
           </div>
+        </div>
         </div>
       </header>
 
