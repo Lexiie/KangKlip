@@ -110,13 +110,13 @@ export default function HomePage() {
                   Clip engine
                 </p>
                 <h1 className="text-4xl font-display tracking-wide text-white sm:text-5xl">
-                  Cut long videos into <span className="text-red-400">viral</span> shorts.
+                  Cut long videos into <span className="text-red-400">high-quality</span> shorts.
                 </h1>
               </div>
             </div>
             <p className="max-w-md text-sm text-white/65 sm:text-base">
-              KangKlip finds hooks, extracts highlights, and renders clips fast. Stop trimming by
-              hand and ship more every day.
+              KangKlip finds hooks, extracts highlights, and renders fast. Cheap, fast, no sign-up,
+              no watermark.
             </p>
             <div className="flex flex-wrap items-center gap-4">
               <a
@@ -133,11 +133,15 @@ export default function HomePage() {
               </a>
             </div>
             <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.35em]">
-              <span className="text-red-400">URL IN</span>
-              <span className="text-white/35">-&gt;</span>
-              <span className="text-white/55">HOOKS OUT</span>
-              <span className="text-white/35">-&gt;</span>
-              <span className="text-white/55">PUBLISHED</span>
+              <span className="text-red-400">CHEAP</span>
+              <span className="text-white/35">|</span>
+              <span className="text-white/55">FAST</span>
+              <span className="text-white/35">|</span>
+              <span className="text-white/55">NO SIGN-UP</span>
+              <span className="text-white/35">|</span>
+              <span className="text-white/55">NO WATERMARK</span>
+              <span className="text-white/35">|</span>
+              <span className="text-white/55">HIGH QUALITY</span>
             </div>
           </div>
 
@@ -147,15 +151,15 @@ export default function HomePage() {
             </p>
             <div className="space-y-3 text-sm text-white/70">
               <p>One URL creates multiple clips in a single job.</p>
-              <p>Auto-captions + 9:16 crop built in.</p>
-              <p>Unlock only the clips you want to download.</p>
+              <p>Auto-captions + 9:16 crop included.</p>
+              <p>Preview first, pay only when you download.</p>
             </div>
             <div className="flex flex-wrap items-center gap-3 border-t border-white/10 pt-4 text-xs text-white/55">
-              <span>GPU render</span>
+              <span>High quality output</span>
               <span className="text-white/35">|</span>
-              <span>USDC credits</span>
+              <span>No watermark</span>
               <span className="text-white/35">|</span>
-              <span>On-chain balance</span>
+              <span>No sign-up</span>
             </div>
           </div>
         </div>
@@ -165,16 +169,16 @@ export default function HomePage() {
         <div className="grid gap-6 lg:grid-cols-3">
           {[
             {
-              title: "Cutting handled",
-              body: "We chunk transcripts and pick highlight windows so you do not have to scrub timelines.",
+              title: "Cheap & fast",
+              body: "Pay per use. Fast renders with high-quality output and no watermark.",
             },
             {
-              title: "Captions included",
-              body: "Auto-captions ship with every clip so your posts are ready for TikTok and Reels.",
+              title: "No sign-up",
+              body: "Just connect a wallet for credits. No account or email required.",
             },
             {
-              title: "Pay per unlock",
-              body: "Credits are only consumed when you unlock a clip. Preview first, then download.",
+              title: "Preview first",
+              body: "Watch previews for free, spend 1 credit only on download.",
             },
           ].map((item) => (
             <div key={item.title} className="border border-white/15 bg-black/70 p-5">
@@ -190,9 +194,9 @@ export default function HomePage() {
       <section className="reveal stagger-4 border-y border-white/20 py-12">
         <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-4">
-            <h2 className="text-2xl font-display text-white">Ready to generate clips?</h2>
+            <h2 className="text-2xl font-display text-white">Ready to start?</h2>
             <p className="text-sm text-white/60">
-              Start with one URL. You can top up credits and unlock only the clips that matter.
+              Start with one URL. Top up credits, then download only the clips you want.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -223,20 +227,44 @@ export default function HomePage() {
           <div className="grid gap-3">
             {[
               {
-                q: "What URLs are supported?",
-                a: "YouTube and direct video links. The backend will reject unsupported URLs.",
+                q: "How much does generation cost?",
+                a: "Each generate job costs 2 credits for transcript and processing.",
               },
               {
-                q: "How do credits work?",
-                a: "Credits sit on-chain. You spend 1 credit per clip unlock, then download a signed URL.",
+                q: "How much does a download cost?",
+                a: "Each clip download costs 1 credit.",
               },
               {
-                q: "Can I preview before unlocking?",
-                a: "Yes. The job page streams preview clips with short-lived URLs without charging credits.",
+                q: "Do credits expire?",
+                a: "No. Credits never expire.",
               },
               {
-                q: "Where do my files live?",
-                a: "Clips and artifacts are stored in R2 and served via signed URLs.",
+                q: "Is there a watermark?",
+                a: "No watermark is added to the output.",
+              },
+              {
+                q: "Do I need to sign up?",
+                a: "No account needed. Just connect a wallet to top up and unlock.",
+              },
+              {
+                q: "Which URLs are supported?",
+                a: "YouTube and direct video links. Invalid URLs are rejected by the backend.",
+              },
+              {
+                q: "Can I preview before paying?",
+                a: "Yes. Previews use short-lived URLs and do not spend credits.",
+              },
+              {
+                q: "What is the output quality?",
+                a: "High-quality renders with 9:16 crop and auto-captions.",
+              },
+              {
+                q: "Where are files stored?",
+                a: "Clips and artifacts are stored in R2 and delivered via signed URLs.",
+              },
+              {
+                q: "How do I pay for credits?",
+                a: "Top up with USDC using a Solana wallet.",
               },
             ].map((item) => (
               <details key={item.q} className="border border-white/15 bg-black/60 p-4">
