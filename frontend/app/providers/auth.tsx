@@ -29,6 +29,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [status, setStatus] = useState<AuthState["status"]>("idle");
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const pendingAuth = useRef(false);
   const walletRef = useRef<string | null>(null);
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
   const walletAddress = publicKey?.toBase58() ?? null;
@@ -40,6 +41,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
     if (inFlight.current) {
+      pendingAuth.current = true;
       return;
     }
     inFlight.current = true;
@@ -89,6 +91,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setError(err instanceof Error ? err.message : "Auth failed");
     } finally {
       inFlight.current = false;
+      if (pendingAuth.current && walletRef.current && walletRef.current === walletAddress) {
+        pendingAuth.current = false;
+        refresh();
+      }
     }
   }, [apiBase, signMessage, walletAddress]);
 
@@ -98,6 +104,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setAuthToken(null);
       setStatus("idle");
       setError(null);
+      pendingAuth.current = false;
       return;
     }
     setAuthToken(null);
