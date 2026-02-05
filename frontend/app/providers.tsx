@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import { clusterApiUrl } from "@solana/web3.js";
 import {
-  BackpackWalletAdapter,
   CoinbaseWalletAdapter,
   PhantomWalletAdapter,
   SolflareWalletAdapter,
@@ -20,7 +19,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     () => [
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter(),
-      new BackpackWalletAdapter(),
       new CoinbaseWalletAdapter(),
     ],
     []

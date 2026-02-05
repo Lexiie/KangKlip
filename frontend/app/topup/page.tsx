@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { Buffer } from "buffer";
 import { PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
 import WalletButton from "../components/wallet-button";
 import { useAuth } from "../providers/auth";
@@ -23,8 +24,7 @@ type IntentResponse = {
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
 // Decode base64 instruction data from the backend.
-const decodeBase64 = (value: string) =>
-  Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+const decodeBase64 = (value: string) => Buffer.from(value, "base64");
 
 // Format USDC values for display.
 const formatUsdc = (amount: number) =>

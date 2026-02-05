@@ -1,7 +1,9 @@
 import cors from "cors";
 import crypto from "crypto";
 import express from "express";
+import type { NextFunction, Request, Response } from "express";
 import { Readable } from "stream";
+import type { ReadableStream as NodeReadableStream } from "stream/web";
 import { Connection, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
 import { ulid } from "ulid";
 import { getConfig } from "./config.js";
@@ -56,9 +58,9 @@ const buildCallbackUrl = (base: string) => `${base.replace(/\/$/, "")}/api/callb
 
 // Require a valid job token header for job-specific routes.
 const requireJobToken = async (
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction
+  req: Request,
+  res: Response,
+  next: NextFunction
 ) => {
   const jobId = req.params.jobId;
   const data = await store.get(jobId);
@@ -75,9 +77,9 @@ const requireJobToken = async (
 
 // Requires a valid short-lived auth token bound to a wallet.
 const requireAuthToken = async (
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction
+  req: Request,
+  res: Response,
+  next: NextFunction
 ) => {
   const token = req.get("x-auth-token");
   if (!token) {
@@ -254,7 +256,7 @@ const consumeOnchainCredit = async (
 };
 
 // Create a new job and return the job id + job token.
-app.post("/api/jobs", async (req, res) => {
+app.post("/api/jobs", async (req: Request, res: Response) => {
   const error = validateJobCreate(req.body ?? {});
   if (error) {
     return res.status(400).json({ detail: error });
@@ -310,7 +312,7 @@ app.post("/api/jobs", async (req, res) => {
 });
 
 // Fetch job status and progress.
-app.get("/api/jobs/:jobId", async (req, res) => {
+app.get("/api/jobs/:jobId", async (req: Request, res: Response) => {
   const jobId = req.params.jobId;
   const data = await store.get(jobId);
   if (!data) {
@@ -328,7 +330,7 @@ app.get("/api/jobs/:jobId", async (req, res) => {
 });
 
 // Issue a wallet signature challenge nonce.
-app.post("/api/auth/challenge", async (req, res) => {
+app.post("/api/auth/challenge", async (req: Request, res: Response) => {
   const walletAddress = req.body?.wallet_address;
   if (!walletAddress || typeof walletAddress !== "string" || !isValidPublicKey(walletAddress)) {
     return res.status(400).json({ detail: "wallet_address is required" });
@@ -355,7 +357,7 @@ app.post("/api/auth/challenge", async (req, res) => {
 });
 
 // Verify a signed wallet challenge and mint an auth token.
-app.post("/api/auth/verify", async (req, res) => {
+app.post("/api/auth/verify", async (req: Request, res: Response) => {
   const walletAddress = req.body?.wallet_address;
   const nonce = req.body?.nonce;
   const signature = req.body?.signature;
@@ -394,7 +396,7 @@ app.post("/api/auth/verify", async (req, res) => {
 });
 
 // Trigger job execution on Nosana.
-app.post("/api/jobs/:jobId/start", async (req, res) => {
+app.post("/api/jobs/:jobId/start", async (req: Request, res: Response) => {
   const jobId = req.params.jobId;
   const data = await store.get(jobId);
   if (!data) {
@@ -414,7 +416,7 @@ app.post("/api/jobs/:jobId/start", async (req, res) => {
 });
 
 // Return clip metadata with lock state and action endpoints.
-app.get("/api/jobs/:jobId/results", requireJobToken, async (req, res) => {
+app.get("/api/jobs/:jobId/results", requireJobToken, async (req: Request, res: Response) => {
   const jobId = req.params.jobId;
   const data = (res.locals.jobRecord as JobRecord | undefined) ?? (await store.get(jobId));
   if (!data) {
@@ -463,8 +465,8 @@ app.get("/api/jobs/:jobId/results", requireJobToken, async (req, res) => {
 
 // Stream clip bytes from R2 to the client.
 const streamClip = async (
-  req: express.Request,
-  res: express.Response,
+  req: Request,
+  res: Response,
   options?: { attachment?: boolean }
 ) => {
   const jobId = req.params.jobId;
@@ -513,8 +515,11 @@ const streamClip = async (
     const body = response.Body as unknown;
     if (body && typeof (body as { pipe?: unknown }).pipe === "function") {
       (body as Readable).pipe(res);
-    } else if (body && typeof (body as ReadableStream).getReader === "function") {
-      Readable.fromWeb(body as ReadableStream).pipe(res);
+    } else if (body && typeof (body as NodeReadableStream).getReader === "function") {
+      const fromWeb = (Readable as unknown as {
+        fromWeb: (stream: NodeReadableStream) => Readable;
+      }).fromWeb;
+      fromWeb(body as NodeReadableStream).pipe(res);
     } else {
       return res.status(502).json({ detail: "unsupported clip body" });
     }
@@ -525,15 +530,19 @@ const streamClip = async (
 };
 
 // Stream a clip object directly when proxying through the backend.
-app.get("/api/jobs/:jobId/clips/:clipFile", requireJobToken, async (req, res) => {
-  return streamClip(req, res);
-});
+app.get(
+  "/api/jobs/:jobId/clips/:clipFile",
+  requireJobToken,
+  async (req: Request, res: Response) => {
+    return streamClip(req, res);
+  }
+);
 
 // Return a signed download URL for unlocked clips.
 app.get(
   "/api/jobs/:jobId/clips/:clipFile/download",
   requireJobToken,
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const jobId = req.params.jobId;
     const clipFile = req.params.clipFile;
     const data = (res.locals.jobRecord as JobRecord | undefined) ?? (await store.get(jobId));
@@ -563,7 +572,7 @@ app.get(
 app.get(
   "/api/jobs/:jobId/clips/:clipFile/preview",
   requireJobToken,
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const jobId = req.params.jobId;
     const clipFile = req.params.clipFile;
     const data = (res.locals.jobRecord as JobRecord | undefined) ?? (await store.get(jobId));
@@ -590,7 +599,7 @@ app.post(
   "/api/jobs/:jobId/clips/:clipFile/unlock",
   requireJobToken,
   requireAuthToken,
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     const jobId = req.params.jobId;
     const clipFile = req.params.clipFile;
     const data = (res.locals.jobRecord as JobRecord | undefined) ?? (await store.get(jobId));
@@ -620,9 +629,6 @@ app.post(
       if (!allowed.has(clipFile)) {
         return res.status(404).json({ detail: "clip not found" });
       }
-      const totalCredits = await fetchOnchainCredits(walletAddress);
-      const spentCredits = await store.getSpentCredits(walletAddress);
-      const availableCredits = Math.max(0, totalCredits - spentCredits);
       const unlockPending = await store.getUnlockPending(unlockRequestId);
       if (unlockPending) {
         const pendingJob =
@@ -761,7 +767,7 @@ app.post(
 );
 
 // Accept job status callbacks from the worker.
-app.post("/api/callback/nosana", async (req, res) => {
+app.post("/api/callback/nosana", async (req: Request, res: Response) => {
   const token = req.get("x-callback-token");
   if (token !== config.callbackToken) {
     return res.status(401).json({ detail: "invalid callback token" });
@@ -786,14 +792,16 @@ app.post("/api/callback/nosana", async (req, res) => {
   if (payload.error) {
     updates.error = payload.error;
   }
+  const isTerminalStatus =
+    payload.status === JOB_STATUS.SUCCEEDED || payload.status === JOB_STATUS.FAILED;
   if (payload.stage && Object.values(JOB_STAGE).includes(payload.stage)) {
     updates.stage = payload.stage;
-  } else if ([JOB_STATUS.SUCCEEDED, JOB_STATUS.FAILED].includes(payload.status)) {
+  } else if (isTerminalStatus) {
     updates.stage = JOB_STAGE.DONE;
   }
   if (typeof payload.progress === "number" && Number.isFinite(payload.progress)) {
     updates.progress = Math.min(100, Math.max(0, payload.progress));
-  } else if ([JOB_STATUS.SUCCEEDED, JOB_STATUS.FAILED].includes(payload.status)) {
+  } else if (isTerminalStatus) {
     updates.progress = 100;
   }
   await store.update(payload.job_id, updates);
@@ -801,7 +809,7 @@ app.post("/api/callback/nosana", async (req, res) => {
 });
 
 // Return the on-chain credit balance for the authenticated wallet.
-app.get("/api/credits/balance", requireAuthToken, async (req, res) => {
+app.get("/api/credits/balance", requireAuthToken, async (req: Request, res: Response) => {
   const authWallet = res.locals.authWallet as string | undefined;
   const walletQuery = req.query.wallet as string | undefined;
   if (!authWallet || !isValidPublicKey(authWallet)) {
@@ -815,84 +823,96 @@ app.get("/api/credits/balance", requireAuthToken, async (req, res) => {
 });
 
 // Build a top-up intent with the pay_usdc instruction payload.
-app.post("/api/credits/topup/usdc/intent", requireAuthToken, async (req, res) => {
-  const authWallet = res.locals.authWallet as string | undefined;
-  const creditsToBuy = req.body?.credits_to_buy;
-  if (!authWallet || !isValidPublicKey(authWallet)) {
-    return res.status(401).json({ detail: "invalid auth token" });
+app.post(
+  "/api/credits/topup/usdc/intent",
+  requireAuthToken,
+  async (req: Request, res: Response) => {
+    const authWallet = res.locals.authWallet as string | undefined;
+    const creditsToBuy = req.body?.credits_to_buy;
+    if (!authWallet || !isValidPublicKey(authWallet)) {
+      return res.status(401).json({ detail: "invalid auth token" });
+    }
+    const credits = Number(creditsToBuy);
+    if (!Number.isFinite(credits) || credits <= 0 || !Number.isInteger(credits)) {
+      return res.status(400).json({ detail: "credits_to_buy must be a positive integer" });
+    }
+    const amountBaseUnits = credits * CREDIT_UNIT;
+    const programId = new PublicKey(config.creditsProgramId);
+    const authority = new PublicKey(config.treasuryAddress);
+    const usdcMint = new PublicKey(config.usdcMint);
+    const walletKey = new PublicKey(authWallet);
+    const configPda = deriveConfigPda(authority, programId);
+    const userCreditPda = deriveUserCreditPda(walletKey, programId);
+    const vaultAta = deriveAssociatedTokenAddress(configPda, usdcMint);
+    const userAta = deriveAssociatedTokenAddress(walletKey, usdcMint);
+    const instructionData = buildPayUsdcInstructionData(BigInt(amountBaseUnits)).toString("base64");
+    return res.json({
+      wallet_address: authWallet,
+      credits_to_buy: credits,
+      amount_base_units: amountBaseUnits,
+      credit_unit: CREDIT_UNIT,
+      program_id: programId.toBase58(),
+      config_pda: configPda.toBase58(),
+      user_credit_pda: userCreditPda.toBase58(),
+      vault_ata: vaultAta.toBase58(),
+      user_usdc_ata: userAta.toBase58(),
+      usdc_mint: usdcMint.toBase58(),
+      instruction_data: instructionData,
+    });
   }
-  const credits = Number(creditsToBuy);
-  if (!Number.isFinite(credits) || credits <= 0 || !Number.isInteger(credits)) {
-    return res.status(400).json({ detail: "credits_to_buy must be a positive integer" });
-  }
-  const amountBaseUnits = credits * CREDIT_UNIT;
-  const programId = new PublicKey(config.creditsProgramId);
-  const authority = new PublicKey(config.treasuryAddress);
-  const usdcMint = new PublicKey(config.usdcMint);
-  const walletKey = new PublicKey(authWallet);
-  const configPda = deriveConfigPda(authority, programId);
-  const userCreditPda = deriveUserCreditPda(walletKey, programId);
-  const vaultAta = deriveAssociatedTokenAddress(configPda, usdcMint);
-  const userAta = deriveAssociatedTokenAddress(walletKey, usdcMint);
-  const instructionData = buildPayUsdcInstructionData(BigInt(amountBaseUnits)).toString("base64");
-  return res.json({
-    wallet_address: authWallet,
-    credits_to_buy: credits,
-    amount_base_units: amountBaseUnits,
-    credit_unit: CREDIT_UNIT,
-    program_id: programId.toBase58(),
-    config_pda: configPda.toBase58(),
-    user_credit_pda: userCreditPda.toBase58(),
-    vault_ata: vaultAta.toBase58(),
-    user_usdc_ata: userAta.toBase58(),
-    usdc_mint: usdcMint.toBase58(),
-    instruction_data: instructionData,
-  });
-});
+);
 
 // Confirm a top-up transaction and refresh balance.
-app.post("/api/credits/topup/usdc/confirm", requireAuthToken, async (req, res) => {
-  const authWallet = res.locals.authWallet as string | undefined;
-  const signature = req.body?.signature;
-  if (!authWallet || !isValidPublicKey(authWallet)) {
-    return res.status(401).json({ detail: "invalid auth token" });
-  }
-  if (!signature || typeof signature !== "string") {
-    return res.status(400).json({ detail: "signature is required" });
-  }
-  const already = await store.hasTopupSignature(signature);
-  if (already) {
+app.post(
+  "/api/credits/topup/usdc/confirm",
+  requireAuthToken,
+  async (req: Request, res: Response) => {
+    const authWallet = res.locals.authWallet as string | undefined;
+    const signature = req.body?.signature;
+    if (!authWallet || !isValidPublicKey(authWallet)) {
+      return res.status(401).json({ detail: "invalid auth token" });
+    }
+    if (!signature || typeof signature !== "string") {
+      return res.status(400).json({ detail: "signature is required" });
+    }
+    const already = await store.hasTopupSignature(signature);
+    if (already) {
+      const credits = await fetchOnchainCredits(authWallet);
+      return res.json({ credited: true, new_balance: credits });
+    }
+    const tx = await fetchParsedTransaction(config.solanaRpcUrl, signature);
+    if (!tx) {
+      return res.status(404).json({ detail: "transaction not found" });
+    }
+    if (tx.meta?.err) {
+      return res.status(400).json({ detail: "transaction failed" });
+    }
+    if (!hasProgramInstruction(tx, config.creditsProgramId)) {
+      return res.status(400).json({ detail: "invalid program" });
+    }
+    const marked = await store.markTopupSignature(signature);
+    if (!marked) {
+      const credits = await fetchOnchainCredits(authWallet);
+      return res.json({ credited: true, new_balance: credits });
+    }
     const credits = await fetchOnchainCredits(authWallet);
     return res.json({ credited: true, new_balance: credits });
   }
-  const tx = await fetchParsedTransaction(config.solanaRpcUrl, signature);
-  if (!tx) {
-    return res.status(404).json({ detail: "transaction not found" });
-  }
-  if (tx.meta?.err) {
-    return res.status(400).json({ detail: "transaction failed" });
-  }
-  if (!hasProgramInstruction(tx, config.creditsProgramId)) {
-    return res.status(400).json({ detail: "invalid program" });
-  }
-  const marked = await store.markTopupSignature(signature);
-  if (!marked) {
-    const credits = await fetchOnchainCredits(authWallet);
-    return res.json({ credited: true, new_balance: credits });
-  }
-  const credits = await fetchOnchainCredits(authWallet);
-  return res.json({ credited: true, new_balance: credits });
-});
+);
 
 // Deprecated top-up quote endpoint.
-app.post("/api/credits/topup/quote", async (req, res) => {
+app.post("/api/credits/topup/quote", async (req: Request, res: Response) => {
   return res.status(410).json({ detail: "use /api/credits/topup/usdc/intent" });
 });
 
 // Deprecated top-up confirm endpoint.
-app.post("/api/credits/topup/confirm", requireAuthToken, async (req, res) => {
-  return res.status(410).json({ detail: "use /api/credits/topup/usdc/confirm" });
-});
+app.post(
+  "/api/credits/topup/confirm",
+  requireAuthToken,
+  async (req: Request, res: Response) => {
+    return res.status(410).json({ detail: "use /api/credits/topup/usdc/confirm" });
+  }
+);
 
 const port = Number(process.env.PORT || 8000);
 const host = process.env.HOST || "0.0.0.0";
