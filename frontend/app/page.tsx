@@ -1,106 +1,44 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import WalletButton from "./components/wallet-button";
-import { storeJobToken } from "./lib/jobToken";
 
-type JobResponse = {
-  job_id: string;
-  job_token: string;
-  status: string;
-};
-
-// Render the landing page with job submission form.
+// Render the landing page with hero, CTA, copy, and FAQ.
 export default function HomePage() {
-  const router = useRouter();
-  const [videoUrl, setVideoUrl] = useState("");
-  const [clipDuration, setClipDuration] = useState(45);
-  const [clipCount, setClipCount] = useState(2);
-  const [language] = useState("auto");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
-
-  // Submit the job to the backend API.
-  const submitJob = async () => {
-    setLoading(true);
-    setError(null);
-    setHint(null);
-    const useNoCors = process.env.NEXT_PUBLIC_FETCH_NO_CORS === "true";
-    try {
-      const response = await fetch(`${apiBase}/api/jobs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          video_url: videoUrl,
-          clip_duration_seconds: clipDuration,
-          clip_count: clipCount,
-          language,
-        }),
-        mode: useNoCors ? "no-cors" : "cors",
-      });
-      if (useNoCors || response.type === "opaque") {
-        setHint("Request sent in no-cors mode. Check backend logs for job creation.");
-        return;
-      }
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || "Failed to create job");
-      }
-      const data = (await response.json()) as JobResponse;
-      if (data.job_token) {
-        storeJobToken(data.job_id, data.job_token);
-      }
-      router.push(`/jobs/${data.job_id}`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      setError(message);
-      setHint(
-        `Cannot reach backend. Check NEXT_PUBLIC_API_BASE (current: ${apiBase || "<empty>"}) and that backend is running.`
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 pb-28 pt-24">
+    <main className="mx-auto flex w-full max-w-4xl flex-col gap-10 pb-28 pt-24">
       <header className="reveal stagger-1 fixed left-0 right-0 top-0 z-50">
         <div className="relative mx-auto flex w-full max-w-4xl items-center justify-between rounded-b-2xl border border-white/10 bg-black/90 px-4 py-3 shadow-[0_30px_80px_-50px_rgba(0,0,0,0.9)] backdrop-blur">
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3">
-              <svg
-                viewBox="0 0 48 48"
-                className="h-7 w-7"
-                role="img"
-                aria-label="KangKlip"
-              >
-                <rect
-                  x="5"
-                  y="5"
-                  width="38"
-                  height="38"
-                  rx="10"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="2"
-                />
+            <a href="/" className="flex items-center gap-3">
+              <svg viewBox="0 0 48 48" className="h-7 w-7" role="img" aria-label="KangKlip">
+                <rect x="5" y="5" width="38" height="38" rx="10" fill="none" stroke="white" strokeWidth="2" />
                 <rect x="14" y="13" width="8" height="22" fill="white" />
                 <rect x="26" y="13" width="8" height="22" fill="#ff3b30" />
-                <rect x="10" y="10" width="28" height="28" fill="none" stroke="#ff3b30" strokeOpacity="0.45" strokeWidth="1" />
+                <rect
+                  x="10"
+                  y="10"
+                  width="28"
+                  height="28"
+                  fill="none"
+                  stroke="#ff3b30"
+                  strokeOpacity="0.45"
+                  strokeWidth="1"
+                />
               </svg>
               <span className="text-xs font-display tracking-[0.35em] text-white">KangKlip</span>
-            </div>
+            </a>
             <nav className="hidden items-center gap-4 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/60 sm:flex">
-              <a href="#builder" className="transition hover:text-red-400">
-                Builder
+              <a href="/generate-clips" className="transition hover:text-red-400">
+                Generate Clips
               </a>
               <a href="/topup" className="transition hover:text-red-400">
                 Top Up
+              </a>
+              <a href="#faq" className="transition hover:text-red-400">
+                FAQ
               </a>
             </nav>
           </div>
@@ -115,7 +53,7 @@ export default function HomePage() {
             aria-controls="mobile-nav"
             aria-label="Toggle navigation"
           >
-            {menuOpen ? "×" : "≡"}
+            {menuOpen ? "x" : "="}
           </button>
           {menuOpen ? (
             <button
@@ -133,175 +71,190 @@ export default function HomePage() {
                 : "pointer-events-none -translate-y-2 opacity-0"
             }`}
             aria-hidden={!menuOpen}
-        >
-          <nav className="grid gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
-            {[
-              { label: "Builder", href: "#builder" },
-              { label: "Top Up", href: "/topup" },
-            ].map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                onClick={() => setMenuOpen(false)}
-                tabIndex={menuOpen ? 0 : -1}
-                className="border-b border-white/15 pb-2 transition hover:text-red-400"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-          <div className="mt-3 sm:hidden">
-            <WalletButton />
+          >
+            <nav className="grid gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
+              {[
+                { label: "Generate Clips", href: "/generate-clips" },
+                { label: "Top Up", href: "/topup" },
+                { label: "FAQ", href: "#faq" },
+              ].map((item) => (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  onClick={() => setMenuOpen(false)}
+                  tabIndex={menuOpen ? 0 : -1}
+                  className="border-b border-white/15 pb-2 transition hover:text-red-400"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+            <div className="mt-3 sm:hidden">
+              <WalletButton />
+            </div>
           </div>
-        </div>
         </div>
       </header>
 
-      <section id="builder" className="reveal stagger-2 border-y border-white/20 py-12">
-        <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="space-y-10">
+      <section className="reveal stagger-2 border-y border-white/20 py-12">
+        <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-6">
             <div className="flex items-start gap-6">
               <span className="mt-2 h-14 w-[3px] bg-red-500" />
               <div className="space-y-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/45">
-                  Short-form engine
+                  Clip engine
                 </p>
                 <h1 className="text-4xl font-display tracking-wide text-white sm:text-5xl">
-                  Turn long videos into <span className="text-red-400">sharp</span> clips.
+                  Cut long videos into <span className="text-red-400">viral</span> shorts.
                 </h1>
               </div>
             </div>
             <p className="max-w-md text-sm text-white/65 sm:text-base">
-              Paste a URL, set duration and count, and ship short cuts in one run.
+              KangKlip finds hooks, extracts highlights, and renders clips fast. Stop trimming by
+              hand and ship more every day.
             </p>
+            <div className="flex flex-wrap items-center gap-4">
+              <a
+                href="/generate-clips"
+                className="inline-flex items-center justify-center gap-2 border border-red-500/80 bg-red-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-red-400"
+              >
+                Generate Clips
+              </a>
+              <a
+                href="/topup"
+                className="inline-flex items-center justify-center gap-2 border border-white/20 bg-black px-6 py-3 text-sm font-semibold text-white/80 transition hover:border-red-400/70 hover:text-white"
+              >
+                Top Up Credits
+              </a>
+            </div>
             <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.35em]">
-              <span className="text-red-400">1. URL IN</span>
-              <span className="text-white/35">→</span>
-              <span className="text-white/55">2. CLIPS OUT</span>
-              <span className="text-white/35">→</span>
-              <span className="text-white/55">3. AUTO-CAPTION</span>
+              <span className="text-red-400">URL IN</span>
+              <span className="text-white/35">-&gt;</span>
+              <span className="text-white/55">HOOKS OUT</span>
+              <span className="text-white/35">-&gt;</span>
+              <span className="text-white/55">PUBLISHED</span>
             </div>
           </div>
 
-          <div className="lg:border-l lg:border-white/20 lg:pl-8">
-            <div className="space-y-3">
-              <h2 className="text-2xl font-display tracking-wide text-white">
-                Paste your video URL
-              </h2>
-              <p className="text-sm text-white/60">
-                Choose duration and clip count.
-              </p>
+          <div className="space-y-4 border border-white/15 bg-black/80 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/55">
+              Fast results
+            </p>
+            <div className="space-y-3 text-sm text-white/70">
+              <p>One URL creates multiple clips in a single job.</p>
+              <p>Auto-captions + 9:16 crop built in.</p>
+              <p>Unlock only the clips you want to download.</p>
             </div>
-
-            <div className="mt-8 border border-white/40 bg-black/80 p-6">
-              <label className="grid gap-2 text-xs font-normal uppercase tracking-[0.2em] text-white/55">
-                Video URL
-                <input
-                  value={videoUrl}
-                  onChange={(event) => setVideoUrl(event.target.value)}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  className="border border-white/50 bg-black px-4 py-3 text-base text-white outline-none transition focus:border-red-500/80"
-                  disabled={loading}
-                />
-                <span className="text-[11px] text-white/45">
-                  Supports YouTube and direct links.
-                </span>
-              </label>
-
-              <div className="mt-8 grid gap-6 border-t border-white/25 pt-6">
-                <div className="grid gap-2">
-                  <span className="text-xs font-normal uppercase tracking-[0.2em] text-white/55">
-                    Clip Duration
-                  </span>
-                  <div className="flex gap-3">
-                    {[30, 45, 60].map((value) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setClipDuration(value)}
-                        disabled={loading}
-                        className={`flex-1 border px-3 py-3 text-base font-normal transition ${
-                          clipDuration === value
-                            ? "border-red-500/70 bg-red-500/10 text-white"
-                            : "border-white/40 bg-black text-white/70 hover:border-red-400/60 hover:text-white"
-                        }`}
-                      >
-                        {value}s
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid gap-2">
-                  <span className="text-xs font-normal uppercase tracking-[0.2em] text-white/55">
-                    Clip Count
-                  </span>
-                  <div className="flex items-center gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setClipCount((count) => Math.max(1, count - 1))}
-                      disabled={loading || clipCount <= 1}
-                      className="h-10 w-10 border border-white/40 bg-black text-base font-normal text-white/80 transition hover:border-red-400/60 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      -
-                    </button>
-                    <span className="min-w-[2rem] text-center text-base font-semibold text-white">
-                      {clipCount}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setClipCount((count) => Math.min(5, count + 1))}
-                      disabled={loading || clipCount >= 5}
-                      className="h-10 w-10 border border-white/40 bg-black text-base font-normal text-white/80 transition hover:border-red-400/60 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <input type="hidden" value={language} readOnly />
-
-              {error ? (
-                <div className="mt-6 border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                  <p className="font-semibold">Request failed. Check backend URL and CORS/origin.</p>
-                  <p className="text-xs text-red-300/80">{error}</p>
-                </div>
-              ) : null}
-              {hint ? <p className="mt-3 text-xs text-white/45">{hint}</p> : null}
-
-              <button
-                onClick={submitJob}
-                disabled={loading || !videoUrl}
-                className="mt-8 inline-flex w-full items-center justify-center gap-2 border border-red-500/80 bg-red-500 px-6 py-3 text-base font-semibold text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:border-white/25 disabled:bg-white/10 disabled:text-white/30"
-              >
-                {loading ? (
-                  <span className="flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                    Submitting...
-                  </span>
-                ) : (
-                  "Generate Clips"
-                )}
-              </button>
-              <p className="mt-3 text-xs text-white/55">
-                Runs as a single GPU job.
-              </p>
+            <div className="flex flex-wrap items-center gap-3 border-t border-white/10 pt-4 text-xs text-white/55">
+              <span>GPU render</span>
+              <span className="text-white/35">|</span>
+              <span>USDC credits</span>
+              <span className="text-white/35">|</span>
+              <span>On-chain balance</span>
             </div>
           </div>
         </div>
       </section>
 
-      <footer className="reveal stagger-3 border-t border-white/20 pt-8">
+      <section className="reveal stagger-3">
+        <div className="grid gap-6 lg:grid-cols-3">
+          {[
+            {
+              title: "Cutting handled",
+              body: "We chunk transcripts and pick highlight windows so you do not have to scrub timelines.",
+            },
+            {
+              title: "Captions included",
+              body: "Auto-captions ship with every clip so your posts are ready for TikTok and Reels.",
+            },
+            {
+              title: "Pay per unlock",
+              body: "Credits are only consumed when you unlock a clip. Preview first, then download.",
+            },
+          ].map((item) => (
+            <div key={item.title} className="border border-white/15 bg-black/70 p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-red-400">
+                {item.title}
+              </p>
+              <p className="mt-3 text-sm text-white/60">{item.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="reveal stagger-4 border-y border-white/20 py-12">
+        <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-4">
+            <h2 className="text-2xl font-display text-white">Ready to generate clips?</h2>
+            <p className="text-sm text-white/60">
+              Start with one URL. You can top up credits and unlock only the clips that matter.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <a
+              href="/generate-clips"
+              className="inline-flex items-center justify-center gap-2 border border-red-500/80 bg-red-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-red-400"
+            >
+              Generate Clips
+            </a>
+            <a
+              href="/topup"
+              className="inline-flex items-center justify-center gap-2 border border-white/20 bg-black px-6 py-3 text-sm font-semibold text-white/80 transition hover:border-red-400/70 hover:text-white"
+            >
+              Top Up
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" className="reveal stagger-5">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-display text-white">FAQ</h2>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/55">
+              Quick answers
+            </span>
+          </div>
+          <div className="grid gap-3">
+            {[
+              {
+                q: "What URLs are supported?",
+                a: "YouTube and direct video links. The backend will reject unsupported URLs.",
+              },
+              {
+                q: "How do credits work?",
+                a: "Credits sit on-chain. You spend 1 credit per clip unlock, then download a signed URL.",
+              },
+              {
+                q: "Can I preview before unlocking?",
+                a: "Yes. The job page streams preview clips with short-lived URLs without charging credits.",
+              },
+              {
+                q: "Where do my files live?",
+                a: "Clips and artifacts are stored in R2 and served via signed URLs.",
+              },
+            ].map((item) => (
+              <details key={item.q} className="border border-white/15 bg-black/60 p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-white">
+                  {item.q}
+                </summary>
+                <p className="mt-2 text-sm text-white/60">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <footer className="reveal stagger-6 border-t border-white/20 pt-8">
         <div className="flex flex-col gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/55 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(255,59,48,0.7)]" />
             <span className="font-display text-white">KangKlip</span>
           </div>
-          <span>© 2026 KangKlip</span>
+          <span>(c) 2026 KangKlip</span>
         </div>
       </footer>
-
     </main>
   );
 }

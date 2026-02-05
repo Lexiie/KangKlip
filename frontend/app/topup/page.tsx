@@ -167,7 +167,7 @@ export default function TopupPage() {
       <header className="reveal stagger-1 fixed left-0 right-0 top-0 z-50">
         <div className="relative mx-auto flex w-full max-w-4xl items-center justify-between rounded-b-2xl border border-white/10 bg-black/90 px-4 py-3 shadow-[0_30px_80px_-50px_rgba(0,0,0,0.9)] backdrop-blur">
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3">
+            <a href="/" className="flex items-center gap-3">
               <svg viewBox="0 0 48 48" className="h-7 w-7" role="img" aria-label="KangKlip">
                 <rect x="5" y="5" width="38" height="38" rx="10" fill="none" stroke="white" strokeWidth="2" />
                 <rect x="14" y="13" width="8" height="22" fill="white" />
@@ -184,12 +184,15 @@ export default function TopupPage() {
                 />
               </svg>
               <span className="text-xs font-display tracking-[0.35em] text-white">KangKlip</span>
-            </div>
+            </a>
             <nav className="hidden items-center gap-4 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/60 sm:flex">
               <a href="/" className="transition hover:text-red-400">
-                Builder
+                Home
               </a>
-              <a href="/topup" className="transition hover:text-red-400">
+              <a href="/generate-clips" className="transition hover:text-red-400">
+                Generate Clips
+              </a>
+              <a href="/topup" className="text-red-400">
                 Top Up
               </a>
             </nav>
