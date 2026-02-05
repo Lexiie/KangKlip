@@ -97,6 +97,9 @@ export default function GenerateClipsPage() {
               <a href="/generate-clips" className="text-red-400">
                 Generate Clips
               </a>
+              <a href="/pricing" className="transition hover:text-red-400">
+                Pricing
+              </a>
               <a href="/topup" className="transition hover:text-red-400">
                 Top Up
               </a>
@@ -136,6 +139,7 @@ export default function GenerateClipsPage() {
               {[
                 { label: "Home", href: "/" },
                 { label: "Generate Clips", href: "/generate-clips" },
+                { label: "Pricing", href: "/pricing" },
                 { label: "Top Up", href: "/topup" },
               ].map((item) => (
                 <a

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import WalletButton from "./components/wallet-button";
+import WalletButton from "../components/wallet-button";
 
-// Render the landing page with hero, CTA, copy, and FAQ.
-export default function HomePage() {
+// Render pricing details for credits and usage.
+export default function PricingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -31,17 +31,17 @@ export default function HomePage() {
               <span className="text-xs font-display tracking-[0.35em] text-white">KangKlip</span>
             </a>
             <nav className="hidden items-center gap-4 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/60 sm:flex">
+              <a href="/" className="transition hover:text-red-400">
+                Home
+              </a>
               <a href="/generate-clips" className="transition hover:text-red-400">
                 Generate Clips
-              </a>
-              <a href="/pricing" className="transition hover:text-red-400">
-                Pricing
               </a>
               <a href="/topup" className="transition hover:text-red-400">
                 Top Up
               </a>
-              <a href="#faq" className="transition hover:text-red-400">
-                FAQ
+              <a href="/pricing" className="text-red-400">
+                Pricing
               </a>
             </nav>
           </div>
@@ -77,10 +77,10 @@ export default function HomePage() {
           >
             <nav className="grid gap-3 text-xs font-semibold uppercase tracking-[0.3em] text-white/70">
               {[
+                { label: "Home", href: "/" },
                 { label: "Generate Clips", href: "/generate-clips" },
-                { label: "Pricing", href: "/pricing" },
                 { label: "Top Up", href: "/topup" },
-                { label: "FAQ", href: "#faq" },
+                { label: "Pricing", href: "/pricing" },
               ].map((item) => (
                 <a
                   key={item.label}
@@ -107,55 +107,46 @@ export default function HomePage() {
               <span className="mt-2 h-14 w-[3px] bg-red-500" />
               <div className="space-y-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-white/45">
-                  Clip engine
+                  Pricing
                 </p>
                 <h1 className="text-4xl font-display tracking-wide text-white sm:text-5xl">
-                  Cut long videos into <span className="text-red-400">viral</span> shorts.
+                  Simple credits. <span className="text-red-400">No</span> expiry.
                 </h1>
               </div>
             </div>
             <p className="max-w-md text-sm text-white/65 sm:text-base">
-              KangKlip finds hooks, extracts highlights, and renders clips fast. Stop trimming by
-              hand and ship more every day.
+              Every action is priced in credits so you only pay for what you use. Credits never
+              expire.
             </p>
-            <div className="flex flex-wrap items-center gap-4">
-              <a
-                href="/generate-clips"
-                className="inline-flex items-center justify-center gap-2 border border-red-500/80 bg-red-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-red-400"
-              >
-                Generate Clips
-              </a>
-              <a
-                href="/pricing"
-                className="inline-flex items-center justify-center gap-2 border border-white/20 bg-black px-6 py-3 text-sm font-semibold text-white/80 transition hover:border-red-400/70 hover:text-white"
-              >
-                See Pricing
-              </a>
-            </div>
             <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.35em]">
-              <span className="text-red-400">URL IN</span>
+              <span className="text-red-400">2 CREDITS</span>
               <span className="text-white/35">-&gt;</span>
-              <span className="text-white/55">HOOKS OUT</span>
+              <span className="text-white/55">GENERATE</span>
               <span className="text-white/35">-&gt;</span>
-              <span className="text-white/55">PUBLISHED</span>
+              <span className="text-white/55">1 CREDIT DOWNLOAD</span>
             </div>
           </div>
 
           <div className="space-y-4 border border-white/15 bg-black/80 p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/55">
-              Fast results
+              What you pay for
             </p>
             <div className="space-y-3 text-sm text-white/70">
-              <p>One URL creates multiple clips in a single job.</p>
-              <p>Auto-captions + 9:16 crop built in.</p>
-              <p>Unlock only the clips you want to download.</p>
+              <p>
+                Generate clips: <span className="text-white">2 credits</span> per job (covers
+                transcript + processing).
+              </p>
+              <p>
+                Download clip: <span className="text-white">1 credit</span> per clip.
+              </p>
+              <p>
+                Credits: <span className="text-white">never expire</span>.
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-3 border-t border-white/10 pt-4 text-xs text-white/55">
-              <span>GPU render</span>
-              <span className="text-white/35">|</span>
-              <span>USDC credits</span>
-              <span className="text-white/35">|</span>
               <span>On-chain balance</span>
+              <span className="text-white/35">|</span>
+              <span>Unlock only what you need</span>
             </div>
           </div>
         </div>
@@ -165,16 +156,16 @@ export default function HomePage() {
         <div className="grid gap-6 lg:grid-cols-3">
           {[
             {
-              title: "Cutting handled",
-              body: "We chunk transcripts and pick highlight windows so you do not have to scrub timelines.",
+              title: "Transcript & processing",
+              body: "Every generate-clips run includes transcript, chunking, and selection costs.",
             },
             {
-              title: "Captions included",
-              body: "Auto-captions ship with every clip so your posts are ready for TikTok and Reels.",
+              title: "Pay per download",
+              body: "Only spend credits when you download the clip you want.",
             },
             {
-              title: "Pay per unlock",
-              body: "Credits are only consumed when you unlock a clip. Preview first, then download.",
+              title: "No expiration",
+              body: "Credits never expire so you can top up once and use later.",
             },
           ].map((item) => (
             <div key={item.title} className="border border-white/15 bg-black/70 p-5">
@@ -190,67 +181,29 @@ export default function HomePage() {
       <section className="reveal stagger-4 border-y border-white/20 py-12">
         <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-4">
-            <h2 className="text-2xl font-display text-white">Ready to generate clips?</h2>
+            <h2 className="text-2xl font-display text-white">Need credits?</h2>
             <p className="text-sm text-white/60">
-              Start with one URL. You can top up credits and unlock only the clips that matter.
+              Top up once and use credits whenever you want. No expiry.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <a
-              href="/generate-clips"
+              href="/topup"
               className="inline-flex items-center justify-center gap-2 border border-red-500/80 bg-red-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-red-400"
+            >
+              Top Up Credits
+            </a>
+            <a
+              href="/generate-clips"
+              className="inline-flex items-center justify-center gap-2 border border-white/20 bg-black px-6 py-3 text-sm font-semibold text-white/80 transition hover:border-red-400/70 hover:text-white"
             >
               Generate Clips
             </a>
-            <a
-              href="/pricing"
-              className="inline-flex items-center justify-center gap-2 border border-white/20 bg-black px-6 py-3 text-sm font-semibold text-white/80 transition hover:border-red-400/70 hover:text-white"
-            >
-              Pricing
-            </a>
           </div>
         </div>
       </section>
 
-      <section id="faq" className="reveal stagger-5">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-display text-white">FAQ</h2>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/55">
-              Quick answers
-            </span>
-          </div>
-          <div className="grid gap-3">
-            {[
-              {
-                q: "What URLs are supported?",
-                a: "YouTube and direct video links. The backend will reject unsupported URLs.",
-              },
-              {
-                q: "How do credits work?",
-                a: "Credits sit on-chain. You spend 1 credit per clip unlock, then download a signed URL.",
-              },
-              {
-                q: "Can I preview before unlocking?",
-                a: "Yes. The job page streams preview clips with short-lived URLs without charging credits.",
-              },
-              {
-                q: "Where do my files live?",
-                a: "Clips and artifacts are stored in R2 and served via signed URLs.",
-              },
-            ].map((item) => (
-              <details key={item.q} className="border border-white/15 bg-black/60 p-4">
-                <summary className="cursor-pointer text-sm font-semibold text-white">
-                  {item.q}
-                </summary>
-                <p className="mt-2 text-sm text-white/60">{item.a}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <footer className="reveal stagger-6 border-t border-white/20 pt-8">
+      <footer className="reveal stagger-5 border-t border-white/20 pt-8">
         <div className="flex flex-col gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/55 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(255,59,48,0.7)]" />

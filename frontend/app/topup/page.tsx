@@ -192,6 +192,9 @@ export default function TopupPage() {
               <a href="/generate-clips" className="transition hover:text-red-400">
                 Generate Clips
               </a>
+              <a href="/pricing" className="transition hover:text-red-400">
+                Pricing
+              </a>
               <a href="/topup" className="text-red-400">
                 Top Up
               </a>
