@@ -30,6 +30,7 @@ type JobResultsResponse = {
 
 type ClipActionState = "idle" | "unlocking" | "downloading";
 
+// Create a unique idempotency key for unlock requests.
 const buildRequestId = () => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -37,6 +38,7 @@ const buildRequestId = () => {
   return `req_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 };
 
+// Render the job progress and results UI.
 export default function JobPage() {
   const params = useParams();
   const jobId = params?.job_id as string;
@@ -71,11 +73,13 @@ export default function JobPage() {
     setClipActions({});
   }, [jobId]);
 
+  // Resolve API endpoints that may be relative.
   const resolveEndpoint = useCallback(
     (endpoint: string) => (endpoint.startsWith("http") ? endpoint : `${apiBase}${endpoint}`),
     [apiBase]
   );
 
+  // Build headers with job and auth tokens when available.
   const buildHeaders = useCallback(
     (includeAuth: boolean) => {
       const headers: Record<string, string> = {};
@@ -90,6 +94,7 @@ export default function JobPage() {
     [authToken, jobToken]
   );
 
+  // Fetch latest on-chain credits for the connected wallet.
   const refreshCredits = useCallback(async () => {
     if (!authToken) {
       setCreditsBalance(null);
@@ -113,6 +118,7 @@ export default function JobPage() {
     refreshCredits();
   }, [refreshCredits]);
 
+  // Load clip metadata for this job (no signed URLs).
   const loadResults = useCallback(async () => {
     if (!jobId) return;
     if (!jobToken) {
@@ -140,6 +146,7 @@ export default function JobPage() {
     }
   }, [apiBase, buildHeaders, jobId, jobToken]);
 
+  // Poll job status from the backend.
   const loadStatus = useCallback(async () => {
     if (!jobId) return;
     const requestJobId = jobId;
@@ -169,6 +176,7 @@ export default function JobPage() {
     }
   }, [apiBase, buildHeaders, jobId, loadResults, results]);
 
+  // Request a short-lived preview URL for a clip.
   const loadPreview = useCallback(
     async (clip: ClipResult, force = false) => {
       if (!clip.preview_endpoint || !jobToken) {
@@ -216,6 +224,7 @@ export default function JobPage() {
     });
   }, [loadPreview, previewUrls, results]);
 
+  // Unlock a clip using on-chain credits.
   const unlockClip = useCallback(
     async (clip: ClipResult) => {
       setActionError(null);
@@ -262,6 +271,7 @@ export default function JobPage() {
     [authToken, buildHeaders, jobToken, resolveEndpoint]
   );
 
+  // Request a long-lived download URL for an unlocked clip.
   const downloadClip = useCallback(
     async (clip: ClipResult) => {
       setActionError(null);
@@ -323,6 +333,7 @@ export default function JobPage() {
   const [showFullId, setShowFullId] = useState(false);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
 
+  // Copy the job id to the clipboard.
   const copyJobId = async () => {
     try {
       await navigator.clipboard.writeText(jobId);

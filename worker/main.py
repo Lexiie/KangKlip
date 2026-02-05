@@ -27,10 +27,12 @@ def main() -> None:
     config = load_config()
 
     def log(message: str) -> None:
+        # Print a log line and flush stdout.
         print(message)
         sys.stdout.flush()
 
     def report(stage: str, progress: int) -> None:
+        # Report progress to the backend callback endpoint.
         try:
             callback_backend(
                 config.callback_url,

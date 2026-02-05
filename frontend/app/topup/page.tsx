@@ -22,14 +22,17 @@ type IntentResponse = {
 
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 
+// Decode base64 instruction data from the backend.
 const decodeBase64 = (value: string) =>
   Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
 
+// Format USDC values for display.
 const formatUsdc = (amount: number) =>
   new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(
     amount
   );
 
+// Render the credits top-up flow.
 export default function TopupPage() {
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
   const { connection } = useConnection();
@@ -45,6 +48,7 @@ export default function TopupPage() {
   const isValidCredits = Number.isInteger(creditsToBuy) && creditsToBuy > 0;
   const usdcAmount = useMemo(() => (isValidCredits ? creditsToBuy * 0.1 : 0), [creditsToBuy, isValidCredits]);
 
+  // Build auth headers for credit endpoints.
   const buildHeaders = useCallback(() => {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (authToken) {
@@ -53,6 +57,7 @@ export default function TopupPage() {
     return headers;
   }, [authToken]);
 
+  // Fetch on-chain credit balance for the current wallet.
   const refreshBalance = useCallback(async () => {
     if (!authToken) {
       setBalance(null);
@@ -76,6 +81,7 @@ export default function TopupPage() {
     refreshBalance();
   }, [refreshBalance]);
 
+  // Ask the backend for a pay_usdc instruction payload.
   const requestIntent = async () => {
     const response = await fetch(`${apiBase}/api/credits/topup/usdc/intent`, {
       method: "POST",
@@ -89,6 +95,7 @@ export default function TopupPage() {
     return payload as IntentResponse;
   };
 
+  // Build the Anchor pay_usdc instruction from the backend payload.
   const buildInstruction = (intent: IntentResponse, walletAddress: PublicKey) => {
     return new TransactionInstruction({
       programId: new PublicKey(intent.program_id),
@@ -106,6 +113,7 @@ export default function TopupPage() {
     });
   };
 
+  // Run the full top-up flow: intent -> sign -> confirm.
   const handleTopup = async () => {
     setError(null);
     setSignature(null);

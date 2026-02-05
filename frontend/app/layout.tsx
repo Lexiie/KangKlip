@@ -10,8 +10,8 @@ type LayoutProps = {
   children: React.ReactNode;
 };
 
+// Render the global layout wrapper.
 export default function RootLayout({ children }: LayoutProps) {
-  // Render the global layout wrapper.
   return (
     <html lang="en">
       <body className="min-h-screen bg-[#0b0b0b] font-body text-white antialiased">

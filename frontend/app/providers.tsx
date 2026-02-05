@@ -12,6 +12,7 @@ import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { AuthProvider } from "./providers/auth";
 
+// Compose wallet + auth providers for the app tree.
 export default function Providers({ children }: { children: React.ReactNode }) {
   const endpoint =
     process.env.NEXT_PUBLIC_SOLANA_RPC_URL || clusterApiUrl("mainnet-beta");

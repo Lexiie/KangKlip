@@ -11,8 +11,8 @@ type JobResponse = {
   status: string;
 };
 
+// Render the landing page with job submission form.
 export default function HomePage() {
-  // Render the landing page with job submission form.
   const router = useRouter();
   const [videoUrl, setVideoUrl] = useState("");
   const [clipDuration, setClipDuration] = useState(45);
@@ -25,8 +25,8 @@ export default function HomePage() {
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "";
 
+  // Submit the job to the backend API.
   const submitJob = async () => {
-    // Submit the job to the backend API.
     setLoading(true);
     setError(null);
     setHint(null);

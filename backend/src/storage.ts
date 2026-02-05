@@ -166,6 +166,7 @@ export class JobStore {
     await this.client.set(key, JSON.stringify(payload), { EX: 86400 });
   }
 
+  // Fetches pending unlock state for recovery.
   async getUnlockPending(unlockRequestId: string): Promise<Record<string, unknown> | null> {
     const key = `unlock:pending:${unlockRequestId}`;
     const raw = await this.client.get(key);
@@ -179,11 +180,13 @@ export class JobStore {
     }
   }
 
+  // Removes a pending unlock marker.
   async deleteUnlockPending(unlockRequestId: string): Promise<void> {
     const key = `unlock:pending:${unlockRequestId}`;
     await this.client.del(key);
   }
 
+  // Fetches idempotency results for an unlock request.
   async getIdempotencyResult(unlockRequestId: string): Promise<Record<string, unknown> | null> {
     const key = `idem:${unlockRequestId}`;
     const raw = await this.client.get(key);

@@ -36,6 +36,7 @@ export type Config = {
   spenderKeypair: string;
 };
 
+// Read a required env var or throw.
 const required = (key: string): string => {
   const value = process.env[key];
   if (!value) {
@@ -44,6 +45,7 @@ const required = (key: string): string => {
   return value;
 };
 
+// Parse allowed CORS origins from env or default to localhost.
 const parseCorsOrigins = (): string[] => {
   const raw = process.env.CORS_ORIGINS;
   if (raw) {
@@ -58,6 +60,7 @@ const parseCorsOrigins = (): string[] => {
   return ["http://localhost:3000", "http://127.0.0.1:3000"];
 };
 
+// Build the full backend config from environment variables.
 export const getConfig = (): Config => {
   return {
     nosanaApiKey: required("NOSANA_API_KEY"),
@@ -94,11 +97,13 @@ export const getConfig = (): Config => {
   };
 };
 
+// Normalize Nosana API base to include /api suffix.
 export const normalizeApiBase = (base: string): string => {
   const trimmed = base.replace(/\/+$/, "");
   return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
 };
 
+// Normalize Nosana SDK base to exclude /api suffix.
 export const normalizeSdkBase = (base: string): string => {
   const trimmed = base.replace(/\/+$/, "");
   return trimmed.endsWith("/api") ? trimmed.slice(0, -4) : trimmed;

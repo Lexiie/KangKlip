@@ -49,9 +49,12 @@ const nosana = createNosanaClient(config);
 const solanaConnection = new Connection(config.solanaRpcUrl, "confirmed");
 const spenderKeypair = loadKeypair(config.spenderKeypair);
 
+// Generate a ULID-based job id.
 const buildJobId = () => `kk_${ulid()}`;
+// Build the callback URL for worker status updates.
 const buildCallbackUrl = (base: string) => `${base.replace(/\/$/, "")}/api/callback/nosana`;
 
+// Require a valid job token header for job-specific routes.
 const requireJobToken = async (
   req: express.Request,
   res: express.Response,
@@ -88,6 +91,7 @@ const requireAuthToken = async (
   return next();
 };
 
+// Build the environment variables passed to the worker container.
 const buildWorkerEnv = (
   jobId: string,
   body: { clip_duration_seconds: number; clip_count: number; language: string; video_url: string }
@@ -138,6 +142,7 @@ const buildWorkerEnv = (
   return env;
 };
 
+// Validate a clip file and resolve its R2 object key.
 const resolveClipKey = async (
   jobId: string,
   clipFile: string,
@@ -185,6 +190,7 @@ const fetchOnchainCredits = async (walletAddress: string): Promise<number> => {
 // Sends a consume_credit instruction signed by the backend spender key.
 const MEMO_PROGRAM_ID = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
 
+// Sanitize memo input and keep it within Solana memo limits.
 const buildMemo = (value?: string): string | undefined => {
   if (!value) {
     return undefined;
@@ -199,6 +205,7 @@ const buildMemo = (value?: string): string | undefined => {
   return crypto.createHash("sha256").update(trimmed).digest("hex").slice(0, 64);
 };
 
+// Submit a consume_credit instruction via the backend spender key.
 const consumeOnchainCredit = async (
   walletAddress: string,
   amount: number,
@@ -246,6 +253,7 @@ const consumeOnchainCredit = async (
   return signature;
 };
 
+// Create a new job and return the job id + job token.
 app.post("/api/jobs", async (req, res) => {
   const error = validateJobCreate(req.body ?? {});
   if (error) {
@@ -301,6 +309,7 @@ app.post("/api/jobs", async (req, res) => {
   return res.json({ job_id: jobId, job_token: jobToken, status: JOB_STATUS.QUEUED });
 });
 
+// Fetch job status and progress.
 app.get("/api/jobs/:jobId", async (req, res) => {
   const jobId = req.params.jobId;
   const data = await store.get(jobId);
@@ -318,6 +327,7 @@ app.get("/api/jobs/:jobId", async (req, res) => {
   });
 });
 
+// Issue a wallet signature challenge nonce.
 app.post("/api/auth/challenge", async (req, res) => {
   const walletAddress = req.body?.wallet_address;
   if (!walletAddress || typeof walletAddress !== "string" || !isValidPublicKey(walletAddress)) {
@@ -344,6 +354,7 @@ app.post("/api/auth/challenge", async (req, res) => {
   });
 });
 
+// Verify a signed wallet challenge and mint an auth token.
 app.post("/api/auth/verify", async (req, res) => {
   const walletAddress = req.body?.wallet_address;
   const nonce = req.body?.nonce;
@@ -382,6 +393,7 @@ app.post("/api/auth/verify", async (req, res) => {
   return res.json({ auth_token: authToken, expires_in: ttl });
 });
 
+// Trigger job execution on Nosana.
 app.post("/api/jobs/:jobId/start", async (req, res) => {
   const jobId = req.params.jobId;
   const data = await store.get(jobId);
@@ -401,6 +413,7 @@ app.post("/api/jobs/:jobId/start", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// Return clip metadata with lock state and action endpoints.
 app.get("/api/jobs/:jobId/results", requireJobToken, async (req, res) => {
   const jobId = req.params.jobId;
   const data = (res.locals.jobRecord as JobRecord | undefined) ?? (await store.get(jobId));
@@ -448,6 +461,7 @@ app.get("/api/jobs/:jobId/results", requireJobToken, async (req, res) => {
   }
 });
 
+// Stream clip bytes from R2 to the client.
 const streamClip = async (
   req: express.Request,
   res: express.Response,
@@ -510,10 +524,12 @@ const streamClip = async (
   }
 };
 
+// Stream a clip object directly when proxying through the backend.
 app.get("/api/jobs/:jobId/clips/:clipFile", requireJobToken, async (req, res) => {
   return streamClip(req, res);
 });
 
+// Return a signed download URL for unlocked clips.
 app.get(
   "/api/jobs/:jobId/clips/:clipFile/download",
   requireJobToken,
@@ -543,6 +559,7 @@ app.get(
   }
 );
 
+// Return a short-lived preview URL for clips.
 app.get(
   "/api/jobs/:jobId/clips/:clipFile/preview",
   requireJobToken,
@@ -568,6 +585,7 @@ app.get(
   }
 );
 
+// Unlock a clip by consuming on-chain credits.
 app.post(
   "/api/jobs/:jobId/clips/:clipFile/unlock",
   requireJobToken,
@@ -742,6 +760,7 @@ app.post(
   }
 );
 
+// Accept job status callbacks from the worker.
 app.post("/api/callback/nosana", async (req, res) => {
   const token = req.get("x-callback-token");
   if (token !== config.callbackToken) {
@@ -781,6 +800,7 @@ app.post("/api/callback/nosana", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// Return the on-chain credit balance for the authenticated wallet.
 app.get("/api/credits/balance", requireAuthToken, async (req, res) => {
   const authWallet = res.locals.authWallet as string | undefined;
   const walletQuery = req.query.wallet as string | undefined;
@@ -794,6 +814,7 @@ app.get("/api/credits/balance", requireAuthToken, async (req, res) => {
   return res.json({ credits });
 });
 
+// Build a top-up intent with the pay_usdc instruction payload.
 app.post("/api/credits/topup/usdc/intent", requireAuthToken, async (req, res) => {
   const authWallet = res.locals.authWallet as string | undefined;
   const creditsToBuy = req.body?.credits_to_buy;
@@ -829,6 +850,7 @@ app.post("/api/credits/topup/usdc/intent", requireAuthToken, async (req, res) =>
   });
 });
 
+// Confirm a top-up transaction and refresh balance.
 app.post("/api/credits/topup/usdc/confirm", requireAuthToken, async (req, res) => {
   const authWallet = res.locals.authWallet as string | undefined;
   const signature = req.body?.signature;
@@ -862,16 +884,19 @@ app.post("/api/credits/topup/usdc/confirm", requireAuthToken, async (req, res) =
   return res.json({ credited: true, new_balance: credits });
 });
 
+// Deprecated top-up quote endpoint.
 app.post("/api/credits/topup/quote", async (req, res) => {
   return res.status(410).json({ detail: "use /api/credits/topup/usdc/intent" });
 });
 
+// Deprecated top-up confirm endpoint.
 app.post("/api/credits/topup/confirm", requireAuthToken, async (req, res) => {
   return res.status(410).json({ detail: "use /api/credits/topup/usdc/confirm" });
 });
 
 const port = Number(process.env.PORT || 8000);
 const host = process.env.HOST || "0.0.0.0";
+// Start the HTTP server.
 app.listen(port, host, () => {
   console.log(`Backend listening on http://${host}:${port}`);
 });

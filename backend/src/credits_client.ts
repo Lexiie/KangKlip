@@ -56,6 +56,7 @@ export const buildConsumeCreditInstructionData = (amount: bigint): Buffer => {
   return Buffer.concat([discriminator, amountBuffer]);
 };
 
+// Build a full pay_usdc transaction instruction.
 export const buildPayUsdcInstruction = (params: {
   programId: PublicKey;
   user: PublicKey;
@@ -82,6 +83,7 @@ export const buildPayUsdcInstruction = (params: {
   });
 };
 
+// Build a full consume_credit transaction instruction.
 export const buildConsumeCreditInstruction = (params: {
   programId: PublicKey;
   spender: PublicKey;

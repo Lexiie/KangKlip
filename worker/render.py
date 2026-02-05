@@ -16,6 +16,7 @@ except ImportError as exc:
     from transcript import TranscriptEntry
 
 
+# Parse frame rate values from ffprobe metadata.
 def _parse_frame_rate(value: object) -> Optional[float]:
     if isinstance(value, (int, float)):
         return float(value)
@@ -147,6 +148,7 @@ def _extract_rotation(stream: Dict[str, object]) -> int:
     return 0
 
 
+# Clamp a numeric value to a min/max range.
 def _clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(upper, value))
 
@@ -201,6 +203,7 @@ def _build_crop_filter(
     return ",".join(filters)
 
 
+# Format seconds into ASS subtitle time.
 def _format_ass_time(seconds: float) -> str:
     # Format seconds into ASS timestamp (H:MM:SS.cc).
     total_cs = max(0, int(round(seconds * 100)))
@@ -211,6 +214,7 @@ def _format_ass_time(seconds: float) -> str:
     return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
 
 
+# Wrap caption text into lines under a character budget.
 def _wrap_caption(text: str, max_chars: int = 24, max_lines: int = 2) -> List[List[str]]:
     # Wrap caption words into short lines to fit 9:16 safely.
     raw_words = [word for word in text.replace("\n", " ").split(" ") if word]
@@ -242,6 +246,7 @@ def _wrap_caption(text: str, max_chars: int = 24, max_lines: int = 2) -> List[Li
     return kept
 
 
+# Split long words into chunks that fit the caption width.
 def _split_long_word(word: str, max_chars: int) -> List[str]:
     if max_chars <= 0:
         return [word]
@@ -258,16 +263,19 @@ def _split_long_word(word: str, max_chars: int) -> List[str]:
     return parts
 
 
+# Escape a single subtitle line for ASS format.
 def _ass_escape_line(line: str) -> str:
     # Escape ASS control characters per line.
     return line.replace("\\", r"\\").replace("{", r"\{").replace("}", r"\}")
 
 
+# Escape full subtitle text for ASS format.
 def _ass_escape(text: str) -> str:
     # Escape caption text for ASS.
     return _ass_escape_line(text)
 
 
+# Build karaoke timing tags for a line of words.
 def _build_karaoke_text(
     text: str,
     duration: float,
@@ -315,6 +323,7 @@ def _build_karaoke_text(
     return r"\N".join(chunks)
 
 
+# Group words into caption lines within the character budget.
 def _wrap_words(
     words: List[Dict[str, float | str]],
     max_chars: int = 24,
@@ -349,6 +358,7 @@ def _wrap_words(
     return kept
 
 
+# Build karaoke word timings for caption lines.
 def _build_karaoke_words(
     words: List[Dict[str, float | str]],
     max_chars: int = 24,
@@ -378,6 +388,7 @@ def _build_karaoke_words(
     return r"\N".join(chunks)
 
 
+# Flatten transcript words into timing entries.
 def _collect_entries(
     entries: Iterable[TranscriptEntry], start: float, end: float
 ) -> List[TranscriptEntry]:
@@ -391,6 +402,7 @@ def _collect_entries(
     return selected
 
 
+# Build an ASS subtitle payload from transcript data.
 def _build_ass_subtitles(
     clip: ClipSpec,
     transcript: List[TranscriptEntry],
@@ -513,12 +525,14 @@ def _build_ass_subtitles(
     return output_path
 
 
+# Build an ffmpeg subtitles filter for the given file.
 def _subtitle_filter(subtitle_path: Path) -> str:
     # Escape subtitle path for ffmpeg subtitles filter.
     value = str(subtitle_path).replace("\\", r"\\").replace(":", r"\:")
     return f"subtitles={value}"
 
 
+# Detect NVENC support in ffmpeg.
 def _has_nvenc() -> bool:
     # Check whether ffmpeg exposes the encoder and the NVENC runtime is present.
     if not Path("/usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1").exists():
@@ -535,6 +549,7 @@ def _has_nvenc() -> bool:
     return "h264_nvenc" in result.stdout
 
 
+# Check whether the video has an audio stream.
 def _has_audio(video_path: Path) -> bool:
     # Check if the input video has an audio stream.
     try:
@@ -560,6 +575,7 @@ def _has_audio(video_path: Path) -> bool:
     return bool(result.stdout.strip())
 
 
+# Render a montage panel for debugging purposes.
 def _render_montage(
     video_path: Path,
     output_path: Path,
@@ -643,6 +659,7 @@ def _render_montage(
     run_cmd(args)
 
 
+# Render each clip with optional face-aware cropping and captions.
 def render_clips(
     video_path: Path,
     output_dir: Path,
@@ -870,6 +887,7 @@ def render_clips(
     return outputs
 
 
+# Detect face centers for each clip segment.
 def _find_face_centers(
     video_path: Path,
     clips: List[ClipSpec],
@@ -1000,6 +1018,7 @@ def _find_face_centers(
     }
 
 
+# Build per-clip crop filters from face detection results.
 def _build_clip_crop_filters(
     width: int,
     height: int,
@@ -1030,6 +1049,7 @@ def _build_clip_crop_filters(
     return filters
 
 
+# Parse an integer env var within a bounds range.
 def _parse_int_env(name: str, min_value: int, max_value: int) -> Optional[int]:
     value = os.getenv(name)
     if not value:
@@ -1043,6 +1063,7 @@ def _parse_int_env(name: str, min_value: int, max_value: int) -> Optional[int]:
     return parsed
 
 
+# Parse render resolution env vars or return defaults.
 def _parse_resolution_env() -> Tuple[int, int]:
     value = os.getenv("RENDER_RESOLUTION", "1080x1920")
     if "x" in value:
@@ -1059,6 +1080,7 @@ def _parse_resolution_env() -> Tuple[int, int]:
     return 1080, 1920
 
 
+# Build caption styling configuration from environment.
 def _caption_config() -> Dict[str, int | str]:
     target_width, target_height = _parse_resolution_env()
     scale = target_height / 1920

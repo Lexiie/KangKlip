@@ -35,10 +35,12 @@ export type CallbackRequest = {
   progress?: number;
 };
 
+// Validate the job id format.
 export const isValidJobId = (jobId: string): boolean => {
   return /^kk_[0-9A-HJKMNP-TV-Z]{26}$/.test(jobId);
 };
 
+// Validate job creation payload and return an error message if invalid.
 export const validateJobCreate = (body: Partial<JobCreateRequest>): string | null => {
   if (!body.video_url || typeof body.video_url !== "string") {
     return "video_url is required";

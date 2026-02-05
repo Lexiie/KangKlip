@@ -117,6 +117,7 @@ const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
   "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 );
 
+// Derive the ATA for a wallet + mint pair.
 export const getAssociatedTokenAddress = (wallet: string, mint: string): string => {
   const walletKey = new PublicKey(wallet);
   const mintKey = new PublicKey(mint);
@@ -127,6 +128,7 @@ export const getAssociatedTokenAddress = (wallet: string, mint: string): string 
   return address.toBase58();
 };
 
+// Collect top-level and inner instructions from a parsed transaction.
 const collectInstructions = (tx: ParsedTransaction): ParsedInstruction[] => {
   const instructions: ParsedInstruction[] = [];
   const messageInstructions = tx.transaction?.message?.instructions ?? [];
@@ -197,6 +199,7 @@ export const loadKeypair = (source: string): Keypair => {
   return Keypair.fromSecretKey(Uint8Array.from(values));
 };
 
+// Sum USDC transfers from wallet to treasury within a transaction.
 export const totalUsdcTransferred = (
   tx: ParsedTransaction,
   walletAddress: string,

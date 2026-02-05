@@ -4,8 +4,10 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useAuth } from "../providers/auth";
 
+// Render a compact wallet address label.
 const shortAddress = (address: string) => `${address.slice(0, 4)}…${address.slice(-4)}`;
 
+// Render the connect/disconnect wallet button.
 export default function WalletButton() {
   const { publicKey, connected, connecting, disconnect } = useWallet();
   const { setVisible } = useWalletModal();

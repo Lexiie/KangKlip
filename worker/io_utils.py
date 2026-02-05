@@ -35,6 +35,7 @@ def _format_selector() -> str:
 
 def run_cmd(args: List[str], cwd: Optional[Path] = None) -> None:
     # Execute a subprocess command with error handling.
+    # Tail command output for error diagnostics.
     def _tail(path: Path, limit: int = 4000) -> str:
         try:
             data = path.read_text(encoding="utf-8", errors="replace")

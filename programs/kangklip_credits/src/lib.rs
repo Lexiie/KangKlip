@@ -9,6 +9,7 @@ const CREDIT_UNIT: u64 = 100_000;
 pub mod kangklip_credits {
     use super::*;
 
+    // Initialize config PDA with authority and USDC mint.
     pub fn initialize_config(ctx: Context<InitializeConfig>, usdc_mint: Pubkey) -> Result<()> {
         let config = &mut ctx.accounts.config;
         config.authority = ctx.accounts.authority.key();
@@ -19,12 +20,14 @@ pub mod kangklip_credits {
         Ok(())
     }
 
+    // Update the spender pubkey for off-chain debit authority.
     pub fn set_spender(ctx: Context<SetSpender>, spender: Pubkey) -> Result<()> {
         let config = &mut ctx.accounts.config;
         config.spender = spender;
         Ok(())
     }
 
+    // Accept a user USDC transfer and mint credits.
     pub fn pay_usdc(ctx: Context<PayUsdc>, amount_base_units: u64) -> Result<()> {
         require!(amount_base_units > 0, CreditsError::InvalidAmount);
         let config = &ctx.accounts.config;
@@ -77,6 +80,7 @@ pub mod kangklip_credits {
         Ok(())
     }
 
+    // Allow the authority to withdraw USDC from the vault.
     pub fn withdraw_usdc(ctx: Context<WithdrawUsdc>, amount_base_units: u64) -> Result<()> {
         require!(amount_base_units > 0, CreditsError::InvalidAmount);
         let config = &ctx.accounts.config;
