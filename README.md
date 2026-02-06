@@ -11,15 +11,12 @@
 
 KangKlip is a GPU-first short‑clip generator. Paste a long‑form video URL and get 1–5 vertical clips (30/45/60s) with titles and download links. The system is designed for speed and reproducible artifacts: jobs are isolated, outputs are stored under a fixed R2 prefix, and manifests keep every stage auditable.
 
-## Demo Video
-
-[Watch the demo short](https://youtube.com/shorts/FciZfCPEmoA?si=Nmxq1pxfwOv9nnmB)
-
 ## Table of Contents
 
-- [Why It Stands Out](#why-it-stands-out)
+- [Demo Video](#demo-video)
 - [Quick Start](#quick-start)
 - [Services](#services)
+- [Why It Stands Out](#why-it-stands-out)
 - [Architecture at a Glance](#architecture-at-a-glance)
 - [End-to-End Workflow](#end-to-end-workflow)
 - [API Surface](#api-surface)
@@ -37,18 +34,43 @@ KangKlip is a GPU-first short‑clip generator. Paste a long‑form video URL an
 - [Definition of Done](#definition-of-done)
 - [Frontend](#frontend)
 
-## Why It Stands Out
+## Demo Video
 
-- **Script‑driven, not linear.** The pipeline selects highlight segments from a transcript rather than trimming the first N minutes.
-- **Isolated job model.** Every job is stateless, runs on exactly one GPU, and writes to a fixed R2 prefix.
-- **Speed‑first architecture.** Faster‑whisper ASR, LLM selection via API with heuristic fallback, and FFmpeg render tuned for GPU nodes.
-- **Clean artifact trail.** Manifest + transcript + chunks + EDL are uploaded alongside clips for auditability.
+[Watch the demo short](https://youtube.com/shorts/FciZfCPEmoA?si=Nmxq1pxfwOv9nnmB)
+
+## Quick Start
+
+```bash
+# 1) Configure env
+cp .env.example .env
+# fill in required variables
+
+# 2) Start Redis (if not already running)
+redis-server --daemonize yes
+
+# 3) Run backend
+cd backend
+npm install
+npm run dev
+
+# 4) Run frontend
+cd ../frontend
+npm install
+NEXT_PUBLIC_API_BASE=http://localhost:8000 npm run dev
+```
 
 ## Services
 
 - `backend/` Express + TypeScript orchestrator
 - `worker/` GPU pipeline job
 - `frontend/` Next.js UI
+
+## Why It Stands Out
+
+- **Script‑driven, not linear.** The pipeline selects highlight segments from a transcript rather than trimming the first N minutes.
+- **Isolated job model.** Every job is stateless, runs on exactly one GPU, and writes to a fixed R2 prefix.
+- **Speed‑first architecture.** Faster‑whisper ASR, LLM selection via API with heuristic fallback, and FFmpeg render tuned for GPU nodes.
+- **Clean artifact trail.** Manifest + transcript + chunks + EDL are uploaded alongside clips for auditability.
 
 ## Architecture at a Glance
 
@@ -261,27 +283,6 @@ Optional overrides:
 - Callback auth uses `CALLBACK_TOKEN`; keep it secret and rotate if exposed.
 - The worker image is expected to include all model weights and dependencies (no runtime installs).
 - NVENC/NVDEC requires host NVIDIA driver capabilities; GPU nodes may be compute-only.
-
-## Quick Start
-
-```bash
-# 1) Configure env
-cp .env.example .env
-# fill in required variables
-
-# 2) Start Redis (if not already running)
-redis-server --daemonize yes
-
-# 3) Run backend
-cd backend
-npm install
-npm run dev
-
-# 4) Run frontend
-cd ../frontend
-npm install
-NEXT_PUBLIC_API_BASE=http://localhost:8000 npm run dev
-```
 
 ## Troubleshooting
 
