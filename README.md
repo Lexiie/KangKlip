@@ -7,6 +7,7 @@
 ![Nosana](https://img.shields.io/badge/Compute-Nosana-3a72ff)
 ![Storage](https://img.shields.io/badge/Storage-Cloudflare%20R2-f38020)
 ![Queue](https://img.shields.io/badge/State-Redis-dc382d)
+![Solana](https://img.shields.io/badge/Web3-Solana-9945ff)
 
 KangKlip is a GPU-first short‑clip generator. Paste a long‑form video URL and get 1–5 vertical clips (30/45/60s) with titles and download links. The system is designed for speed and reproducible artifacts: jobs are isolated, outputs are stored under a fixed R2 prefix, and manifests keep every stage auditable.
 
@@ -22,6 +23,7 @@ KangKlip is a GPU-first short‑clip generator. Paste a long‑form video URL an
 - [Architecture at a Glance](#architecture-at-a-glance)
 - [End-to-End Workflow](#end-to-end-workflow)
 - [API Surface](#api-surface)
+- [Web3 Credits (Solana)](#web3-credits-solana)
 - [Storage Layout (R2)](#storage-layout-r2)
 - [Job State Lifecycle](#job-state-lifecycle)
 - [Backend](#backend)
@@ -73,10 +75,43 @@ User → Frontend → Backend (Express) → Nosana GPU Job → R2
 - `GET /api/jobs/{job_id}` → status + stage + progress + error
 - `GET /api/jobs/{job_id}/results` → clip titles + signed URLs
 - `POST /api/callback/nosana` → worker completion/failure (requires `x-callback-token`)
+- `POST /api/auth/challenge` → wallet challenge
+- `POST /api/auth/verify` → wallet signature verification
+- `GET /api/credits/balance` → credits for authenticated wallet
+- `POST /api/credits/topup/usdc/intent` → build pay_usdc instruction
+- `POST /api/credits/topup/usdc/confirm` → confirm a topup tx
+- `POST /api/jobs/{job_id}/clips/{clip_file}/unlock` → consume 1 credit
+- `GET /api/jobs/{job_id}/clips/{clip_file}/preview` → short-lived preview URL
+- `GET /api/jobs/{job_id}/clips/{clip_file}/download` → signed download URL
 
 Notes:
 
 - `POST /api/jobs` now returns `job_token`. Store it temporarily (in memory or localStorage) and send it as `x-job-token` on results/clip requests.
+- Authenticated credit endpoints require `x-auth-token` (obtained via challenge/verify).
+
+## Web3 Credits (Solana)
+
+KangKlip uses a simple on-chain credit system on Solana. Credits live in a `UserCredit` PDA and do not expire.
+
+**How it works**
+
+- **Wallet auth**: call `/api/auth/challenge`, sign the message, then `/api/auth/verify` returns an `auth_token`.
+- **Top up**: `/api/credits/topup/usdc/intent` returns a `pay_usdc` instruction payload for the on-chain program. The client signs and submits the transaction, then calls `/api/credits/topup/usdc/confirm` with the signature.
+- **Unlock**: `/api/jobs/{job_id}/clips/{clip_file}/unlock` consumes **1 credit** on-chain via the backend spender key.
+- **No expiry**: credits are stored on-chain and do not have an expiration.
+
+**Program**
+
+- Anchor program: `programs/kangklip_credits`
+- Key accounts: `Config` PDA (authority + USDC mint) and `UserCredit` PDA (user credits)
+
+**Required backend env vars** (web3)
+
+- `SOLANA_RPC_URL`
+- `USDC_MINT`
+- `TREASURY_ADDRESS`
+- `CREDITS_PROGRAM_ID`
+- `SPENDER_KEYPAIR`
 
 ## Storage Layout (R2)
 
@@ -125,6 +160,11 @@ Required environment variables (no placeholders):
 - `CALLBACK_TOKEN`
 - `LLM_API_BASE`
 - `LLM_MODEL_NAME`
+- `SOLANA_RPC_URL`
+- `USDC_MINT`
+- `TREASURY_ADDRESS`
+- `CREDITS_PROGRAM_ID`
+- `SPENDER_KEYPAIR`
 
 Optional:
 
