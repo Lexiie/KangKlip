@@ -24,6 +24,9 @@ KangKlip is a GPU-first short‑clip generator. Paste a long‑form video URL an
 - [End-to-End Workflow](#end-to-end-workflow)
 - [API Surface](#api-surface)
 - [Web3 Credits (Solana)](#web3-credits-solana)
+- [Pricing & Credit Policy](#pricing--credit-policy)
+- [Authentication & Tokens](#authentication--tokens)
+- [Frontend Routes](#frontend-routes)
 - [Storage Layout (R2)](#storage-layout-r2)
 - [Job State Lifecycle](#job-state-lifecycle)
 - [Backend](#backend)
@@ -105,6 +108,12 @@ KangKlip uses a simple on-chain credit system on Solana. Credits live in a `User
 - Anchor program: `programs/kangklip_credits`
 - Key accounts: `Config` PDA (authority + USDC mint) and `UserCredit` PDA (user credits)
 
+**Transaction details**
+
+- The backend builds and submits `consume_credit` transactions using the `SPENDER_KEYPAIR`.
+- Unlock requests include `unlock_request_id` and are treated as idempotent (safe to retry).
+- Preview URLs are short-lived; download URLs are longer-lived and require an unlocked clip.
+
 **Required backend env vars** (web3)
 
 - `SOLANA_RPC_URL`
@@ -112,6 +121,31 @@ KangKlip uses a simple on-chain credit system on Solana. Credits live in a `User
 - `TREASURY_ADDRESS`
 - `CREDITS_PROGRAM_ID`
 - `SPENDER_KEYPAIR`
+
+## Pricing & Credit Policy
+
+- **Generate clips**: 2 credits per job (covers transcript + processing).
+- **Download clip**: 1 credit per clip download (enforced by `/clips/{clip_file}/unlock`).
+- **Credits never expire.**
+
+Enforcement note: generation fees are a product policy. The current backend only consumes credits on unlock. If you want to enforce generation fees, gate `/api/jobs` behind wallet auth and consume credits before submitting the Nosana job.
+
+## Authentication & Tokens
+
+- **Job token** (`job_token`): returned by `POST /api/jobs` and required as `x-job-token` for results, preview, download, and unlock.
+- **Auth token** (`auth_token`): returned by `/api/auth/verify` and required as `x-auth-token` for credit balance, topup, and unlock.
+- **Nonce TTL**: auth challenges expire in ~5 minutes.
+- **Auth token TTL**: ~24 hours.
+
+Frontend stores `job_token` in localStorage (per job). Auth tokens are kept in memory only.
+
+## Frontend Routes
+
+- `/` → landing (hero + CTA + FAQ)
+- `/generate-clips` → builder form to create jobs
+- `/jobs/{job_id}` → job progress, previews, unlock, download
+- `/topup` → credit topup flow
+- `/pricing` → pricing details
 
 ## Storage Layout (R2)
 
@@ -169,6 +203,8 @@ Required environment variables (no placeholders):
 Optional:
 
 - `CORS_ORIGINS` (comma-separated list of allowed frontend origins)
+
+Local dev note: if your frontend runs on a non-3000 port, add it to `CORS_ORIGINS`.
 
 ## Worker
 
