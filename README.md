@@ -92,13 +92,13 @@ User → Frontend → Backend (Express) → Nosana GPU Job → R2
    - FFmpeg render to 9:16
    - Upload artifacts + clips to R2
 4. **Worker callback** marks job `SUCCEEDED` or `FAILED`.
-5. **Frontend polls** status and lists signed download URLs.
+5. **Frontend polls** status and lists clip metadata (locked state + preview/download endpoints).
 
 ## API Surface
 
 - `POST /api/jobs` → create a job, returns `{ job_id, job_token, status }`
 - `GET /api/jobs/{job_id}` → status + stage + progress + error
-- `GET /api/jobs/{job_id}/results` → clip titles + signed URLs
+- `GET /api/jobs/{job_id}/results` → clip metadata (locked flag + endpoints)
 - `POST /api/callback/nosana` → worker completion/failure (requires `x-callback-token`)
 - `POST /api/auth/challenge` → wallet challenge
 - `POST /api/auth/verify` → wallet signature verification
