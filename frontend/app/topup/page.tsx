@@ -307,6 +307,40 @@ export default function TopupPage() {
           </div>
         </div>
       </section>
+
+      <footer className="reveal stagger-4 border-t border-white/20 pt-8">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/55">
+              <span className="h-1.5 w-1.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(255,59,48,0.7)]" />
+              <span className="font-display text-white">KangKlip</span>
+            </div>
+            <div className="space-y-2">
+              <p className="text-base font-display tracking-wide text-white sm:text-lg">
+                Lightning-fast <span className="text-red-400">AI clipper</span> for long-form video.
+              </p>
+              <p className="max-w-2xl text-xs font-medium leading-relaxed text-white/55">
+                KangKlip scans your source, isolates high-engagement moments, reframes to 9:16, and
+                delivers ready-to-post shorts in minutes. Paste a link, set duration, deploy.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-4 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">
+              <a href="/legal" className="transition hover:text-red-400">
+                Legal
+              </a>
+              <a href="/about" className="transition hover:text-red-400">
+                About
+              </a>
+              <a href="/terms" className="transition hover:text-red-400">
+                Terms
+              </a>
+            </div>
+          </div>
+          <div className="text-center text-[11px] font-semibold uppercase tracking-[0.3em] text-white/45">
+            (c) 2026 KangKlip
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
