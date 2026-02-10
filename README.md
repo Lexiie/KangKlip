@@ -11,6 +11,8 @@
 
 KangKlip is a GPU-first short‑clip generator. Paste a long‑form video URL and get 1–5 vertical clips (30/45/60s) with titles and download links. The system is designed for speed and reproducible artifacts: jobs are isolated, outputs are stored under a fixed R2 prefix, and manifests keep every stage auditable.
 
+Next update: we are integrating an AI video creator for text‑to‑video and image‑to‑video workflows, supporting outputs up to 1 minute.
+
 ## Table of Contents
 
 - [Demo Video](#demo-video)
