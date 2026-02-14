@@ -1,0 +1,78 @@
+name: Deploy Anchor Programs
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "programs/**"
+      - "Anchor.toml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/deploy-anchor.yml"
+  workflow_dispatch:
+    inputs:
+      network:
+        description: "Target cluster"
+        type: choice
+        options:
+          - devnet
+          - mainnet
+        default: devnet
+
+concurrency:
+  group: deploy-anchor-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Anchor
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      ANCHOR_VERSION: "0.30.1"
+      SOLANA_VERSION: "1.18.18"
+      ANCHOR_WALLET: /home/runner/.config/solana/id.json
+      DEPLOY_NETWORK: ${{ github.event_name == 'workflow_dispatch' && inputs.network || 'devnet' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v${SOLANA_VERSION}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          solana --version
+
+      - name: Install Anchor CLI
+        run: |
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          cargo install --git https://github.com/coral-xyz/anchor avm --locked
+          avm install "${ANCHOR_VERSION}"
+          avm use "${ANCHOR_VERSION}"
+          anchor --version
+
+      - name: Configure wallet (devnet)
+        if: env.DEPLOY_NETWORK == 'devnet'
+        run: |
+          mkdir -p /home/runner/.config/solana
+          printf '%s' "${{ secrets.ANCHOR_WALLET_DEVNET }}" > /home/runner/.config/solana/id.json
+          solana config set --keypair "$ANCHOR_WALLET"
+          solana config set --url "${{ secrets.SOLANA_RPC_URL_DEVNET }}"
+
+      - name: Configure wallet (mainnet)
+        if: env.DEPLOY_NETWORK == 'mainnet'
+        run: |
+          mkdir -p /home/runner/.config/solana
+          printf '%s' "${{ secrets.ANCHOR_WALLET_MAINNET }}" > /home/runner/.config/solana/id.json
+          solana config set --keypair "$ANCHOR_WALLET"
+          solana config set --url "${{ secrets.SOLANA_RPC_URL_MAINNET }}"
+
+      - name: Anchor build
+        run: anchor build
+
+      - name: Anchor deploy
+        run: anchor deploy
