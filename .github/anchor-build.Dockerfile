@@ -1,7 +1,7 @@
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV SOLANA_VERSION=v2.3.13
+ENV SOLANA_VERSION=v3.1.11
 ENV ANCHOR_VERSION=0.31.1
 ENV CARGO_UNSTABLE_NEXT_LOCKFILE_BUMP=false
 ENV PATH="/root/.cargo/bin:/root/.local/share/solana/install/active_release/bin:${PATH}"
