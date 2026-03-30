@@ -43,13 +43,19 @@ jobs:
         with:
           path: /tmp/anchor-build.tar
           key: anchor-build-${{ hashFiles('.github/anchor-build.Dockerfile') }}
-          save-always: true
 
       - name: Build Docker image
         if: steps.cache-docker.outputs.cache-hit != 'true'
         run: |
           docker build -f .github/anchor-build.Dockerfile -t anchor-build:local .
           docker save anchor-build:local -o /tmp/anchor-build.tar
+
+      - name: Save Docker cache
+        if: steps.cache-docker.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/anchor-build.tar
+          key: anchor-build-${{ hashFiles('.github/anchor-build.Dockerfile') }}
 
       - name: Load Docker image
         if: steps.cache-docker.outputs.cache-hit == 'true'
