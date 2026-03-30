@@ -82,6 +82,12 @@ jobs:
           solana config set --keypair "$ANCHOR_WALLET"
           solana config set --url "${{ secrets.SOLANA_RPC_URL_MAINNET }}"
 
+      - name: Generate program keypair and sync declare_id
+        run: |
+          mkdir -p target/deploy
+          solana-keygen new -o target/deploy/kangklip_credits-keypair.json --no-bip39-passphrase --force
+          anchor keys sync
+
       - name: Anchor build
         run: anchor build
 
