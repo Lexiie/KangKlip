@@ -10,6 +10,7 @@ on:
       - "Cargo.lock"
       - ".github/workflows/deploy-anchor.yml"
       - ".github/anchor-build.Dockerfile"
+      - ".github/deploy.sh"
   workflow_dispatch:
     inputs:
       network:
