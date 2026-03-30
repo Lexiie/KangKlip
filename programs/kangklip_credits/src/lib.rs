@@ -16,7 +16,7 @@ pub mod kangklip_credits {
         config.spender = ctx.accounts.authority.key();
         config.usdc_mint = usdc_mint;
         config.credit_unit = CREDIT_UNIT;
-        config.bump = *ctx.bumps.get("config").unwrap();
+        config.bump = ctx.bumps.config;
         Ok(())
     }
 
@@ -69,7 +69,7 @@ pub mod kangklip_credits {
             .credits
             .checked_add(credits_to_add)
             .ok_or(CreditsError::Overflow)?;
-        user_credit.bump = *ctx.bumps.get("user_credit").unwrap();
+        user_credit.bump = ctx.bumps.user_credit;
 
         emit!(Paid {
             user: ctx.accounts.user.key(),
