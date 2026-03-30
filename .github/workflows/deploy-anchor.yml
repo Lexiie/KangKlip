@@ -70,7 +70,11 @@ jobs:
           sed -i "s/kangklip_credits = \".*\"/kangklip_credits = \"$PROGRAM_ID\"/" Anchor.toml
 
       - name: Anchor build
-        run: anchor build
+        run: |
+          rm -f Cargo.lock
+          anchor build
+        env:
+          CARGO_UNSTABLE_NEXT_LOCKFILE_BUMP: "0"
 
       - name: Anchor deploy
         run: anchor deploy
