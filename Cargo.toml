@@ -2,3 +2,6 @@
 members = ["programs/kangklip_credits"]
 resolver = "2"
 
+
+[profile.release]
+overflow-checks = true
