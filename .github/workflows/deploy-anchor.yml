@@ -63,9 +63,7 @@ jobs:
       - name: Install Anchor CLI
         run: |
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
-          avm install "${ANCHOR_VERSION}"
-          avm use "${ANCHOR_VERSION}"
+          cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked
           anchor --version
 
       - name: Configure wallet (devnet)
