@@ -92,7 +92,9 @@ jobs:
           sed -i "s/kangklip_credits = \".*\"/kangklip_credits = \"$PROGRAM_ID\"/" Anchor.toml
 
       - name: Anchor build
-        run: anchor build
+        run: |
+          rm -f Cargo.lock
+          anchor build
 
       - name: Anchor deploy
         run: anchor deploy
