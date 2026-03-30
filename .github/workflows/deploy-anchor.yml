@@ -63,7 +63,7 @@ jobs:
       - name: Install Anchor CLI
         run: |
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          cargo install anchor-cli --version "0.30.1" --locked
+          cargo install anchor-cli --version "0.30.1"
           anchor --version
 
       - name: Configure wallet (devnet)
