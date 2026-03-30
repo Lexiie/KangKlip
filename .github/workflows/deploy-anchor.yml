@@ -67,22 +67,10 @@ jobs:
 
       - name: Build and deploy
         run: |
+          RPC_URL=${{ env.DEPLOY_NETWORK == 'devnet' && secrets.SOLANA_RPC_URL_DEVNET || secrets.SOLANA_RPC_URL_MAINNET }}
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v $HOME/.config/solana:/root/.config/solana \
             -w /workspace \
-            -e DEPLOY_NETWORK=${{ env.DEPLOY_NETWORK }} \
-            -e SOLANA_RPC_URL=${{ env.DEPLOY_NETWORK == 'devnet' && secrets.SOLANA_RPC_URL_DEVNET || secrets.SOLANA_RPC_URL_MAINNET }} \
-            anchor-build:local bash -c "
-              set -e
-              solana config set --keypair /root/.config/solana/id.json
-              solana config set --url \$SOLANA_RPC_URL
-              mkdir -p target/deploy
-              solana-keygen new -o target/deploy/kangklip_credits-keypair.json --no-bip39-passphrase --force
-              PROGRAM_ID=\$(solana address -k target/deploy/kangklip_credits-keypair.json)
-              echo \"Program ID: \$PROGRAM_ID\"
-              sed -i \"s/declare_id!(\\\".*\\\")/declare_id!(\\\"\\$PROGRAM_ID\\\")/\" programs/kangklip_credits/src/lib.rs
-              sed -i \"s/kangklip_credits = \\\".*\\\"/kangklip_credits = \\\"\\$PROGRAM_ID\\\"/\" Anchor.toml
-              anchor build
-              anchor deploy
-            "
+            -e SOLANA_RPC_URL="$RPC_URL" \
+            anchor-build:local bash .github/deploy.sh
