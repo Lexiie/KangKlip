@@ -74,7 +74,7 @@ jobs:
           rm -f Cargo.lock
           anchor build
         env:
-          CARGO_UNSTABLE_NEXT_LOCKFILE_BUMP: "0"
+          CARGO_UNSTABLE_NEXT_LOCKFILE_BUMP: "false"
 
       - name: Anchor deploy
         run: anchor deploy
