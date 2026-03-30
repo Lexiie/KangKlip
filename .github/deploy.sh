@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+export CARGO_UNSTABLE_NEXT_LOCKFILE_BUMP=false
+
 solana config set --keypair /root/.config/solana/id.json
 solana config set --url "$SOLANA_RPC_URL"
 
