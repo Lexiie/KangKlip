@@ -1,6 +1,7 @@
 [workspace]
 members = ["programs/kangklip_credits"]
 resolver = "2"
+rust-version = "1.82"
 
 
 [profile.release]

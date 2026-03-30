@@ -30,7 +30,7 @@ jobs:
     permissions:
       contents: read
     env:
-      ANCHOR_VERSION: "0.31.0"
+      ANCHOR_VERSION: "0.30.1"
       SOLANA_VERSION: "1.18.18"
       ANCHOR_WALLET: /home/runner/.config/solana/id.json
       DEPLOY_NETWORK: ${{ github.event_name == 'workflow_dispatch' && inputs.network || 'devnet' }}
@@ -95,7 +95,7 @@ jobs:
 
       - name: Anchor build
         run: |
-          rm -f Cargo.lock
+          find . -name "Cargo.lock" -delete
           anchor build
         env:
           CARGO_UNSTABLE_NEXT_LOCKFILE_BUMP: false
