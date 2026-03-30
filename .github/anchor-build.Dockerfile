@@ -17,5 +17,8 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Solana (Agave 2.x — no io_uring dependency)
 RUN sh -c "$(curl -sSfL https://release.anza.xyz/${SOLANA_VERSION}/install)"
 
+# Override cargo used by cargo-build-sbf with system cargo (Rust 1.85)
+RUN ln -sf /root/.cargo/bin/cargo $(dirname $(which cargo-build-sbf))/cargo 2>/dev/null || true
+
 # Anchor CLI (compile from source for GLIBC compatibility)
 RUN cargo install --git https://github.com/coral-xyz/anchor --tag v${ANCHOR_VERSION} anchor-cli --locked
