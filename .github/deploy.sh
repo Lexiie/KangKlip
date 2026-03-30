@@ -3,6 +3,7 @@ set -e
 
 export CARGO_UNSTABLE_NEXT_LOCKFILE_BUMP=false
 export CARGO=/root/.cargo/bin/cargo
+export ANCHOR_PROVIDER_URL="${SOLANA_RPC_URL:-https://api.devnet.solana.com}"
 
 solana config set --keypair /root/.config/solana/id.json
 solana config set --url "${SOLANA_RPC_URL:-https://api.devnet.solana.com}"
