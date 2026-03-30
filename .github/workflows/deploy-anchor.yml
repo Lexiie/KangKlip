@@ -30,7 +30,7 @@ jobs:
     permissions:
       contents: read
     env:
-      ANCHOR_VERSION: "0.30.1"
+      ANCHOR_VERSION: "0.31.1"
       SOLANA_VERSION: "1.18.18"
       ANCHOR_WALLET: /home/runner/.config/solana/id.json
       DEPLOY_NETWORK: ${{ github.event_name == 'workflow_dispatch' && inputs.network || 'devnet' }}
