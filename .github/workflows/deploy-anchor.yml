@@ -42,15 +42,14 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Solana CLI
-        run: |
-          sh -c "$(curl -sSfL https://release.solana.com/v${SOLANA_VERSION}/install)"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
-          solana --version
+        uses: solana-labs/solana-install-action@v1
+        with:
+          solana-version: ${{ env.SOLANA_VERSION }}
 
       - name: Install Anchor CLI
         run: |
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          cargo install --git https://github.com/coral-xyz/anchor avm --locked
+          cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
           avm install "${ANCHOR_VERSION}"
           avm use "${ANCHOR_VERSION}"
           anchor --version
