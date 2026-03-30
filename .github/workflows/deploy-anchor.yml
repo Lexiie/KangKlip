@@ -75,7 +75,11 @@ jobs:
 
       - name: Build and deploy
         run: |
-          RPC_URL=${{ env.DEPLOY_NETWORK == 'devnet' && secrets.SOLANA_RPC_URL_DEVNET || secrets.SOLANA_RPC_URL_MAINNET }}
+          if [ "${{ env.DEPLOY_NETWORK }}" = "devnet" ]; then
+            RPC_URL="${{ secrets.SOLANA_RPC_URL_DEVNET }}"
+          else
+            RPC_URL="${{ secrets.SOLANA_RPC_URL_MAINNET }}"
+          fi
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -v $HOME/.config/solana:/root/.config/solana \
