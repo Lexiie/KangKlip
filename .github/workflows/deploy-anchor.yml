@@ -30,7 +30,7 @@ jobs:
     permissions:
       contents: read
     env:
-      ANCHOR_VERSION: "0.30.1"
+      ANCHOR_VERSION: "0.31.0"
       SOLANA_VERSION: "1.18.18"
       ANCHOR_WALLET: /home/runner/.config/solana/id.json
       DEPLOY_NETWORK: ${{ github.event_name == 'workflow_dispatch' && inputs.network || 'devnet' }}
@@ -41,7 +41,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.85"
+          toolchain: "1.82"
 
       - name: Cache Rust/Cargo
         uses: actions/cache@v4
