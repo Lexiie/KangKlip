@@ -15,5 +15,8 @@ echo "Program ID: $PROGRAM_ID"
 sed -i "s/declare_id!(\"[^\"]*\")/declare_id!(\"$PROGRAM_ID\")/" programs/kangklip_credits/src/lib.rs
 sed -i "s/kangklip_credits = \"[^\"]*\"/kangklip_credits = \"$PROGRAM_ID\"/" Anchor.toml
 
+cargo update -p toml_edit --precise 0.22.22
+cargo update -p blake3 --precise 1.5.4
+cargo update -p toml_datetime --precise 0.6.8
 anchor build
 anchor deploy
